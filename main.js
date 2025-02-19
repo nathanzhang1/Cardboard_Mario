@@ -6,8 +6,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 10, 15);
-camera.lookAt(0, 0, 0);
+camera.position.set(0, 8, 12);
+//camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -23,10 +23,10 @@ controls.maxDistance = 50;
 //Load 1-1 Model
 const loader = new GLTFLoader();
 loader.load(
-    'assets/super_mario_bros._level_1_-_1.glb',  // <-- Update with your actual file path
+    'assets/super_mario_bros._level_1_-_1.glb', 
     function (gltf) {
         const model = gltf.scene;
-        model.position.set(0, 0, 0); // Adjust the position if needed
+        model.position.set(0, 0, 0);
         scene.add(model);
     },
     function (xhr) {
@@ -39,44 +39,87 @@ loader.load(
 
 
 
-// Ground plane
-// const groundGeometry = new THREE.PlaneGeometry(50, 50);
-// const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide });
-// const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-// ground.rotation.x = -Math.PI / 2;
-// scene.add(ground);
+//Create Player
+const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
+const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+const player = new THREE.Mesh(playerGeometry, playerMaterial);
+player.position.set(0, 2.5, 3.82);
+scene.add(player);
 
-// Walls
-// const wallGeometry = new THREE.BoxGeometry(2, 5, 2);
-// const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
-// const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-// wall.position.set(0, 2.5, -5);
-// scene.add(wall);
+camera.lookAt(player.position);
 
-// Walls = 1, paths = 0
-// const mazeLayout = [
-//     [1, 1, 1, 1, 1],
-//     [1, 0, 0, 0, 1],
-//     [1, 0, 1, 0, 1],
-//     [1, 0, 0, 0, 1],
-//     [1, 1, 1, 1, 1]
-// ];
+//Player Controller
+const keys = { forward: false, backward: false, left: false, right: false, jump: false };
+document.addEventListener("keydown", (event) => {
+    if (event.code === "ArrowUp" || event.code === "KeyW") keys.forward = true;
+    if (event.code === "ArrowDown" || event.code === "KeyS") keys.backward = true;
+    if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = true;
+    if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = true;
+    if (event.code === "Space") keys.jump = true;
+});
 
-// PLace walls
-// for (let i = 0; i < mazeLayout.length; i++) {
-//     for (let j = 0; j < mazeLayout[i].length; j++) {
-//         if (mazeLayout[i][j] === 1) {
-//             const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-//             wall.position.set(i * 2 - 5, 2.5, j * 2 - 5);
-//             scene.add(wall);
-//         }
-//     }
-// }
+document.addEventListener("keyup", (event) => {
+    if (event.code === "ArrowUp" || event.code === "KeyW") keys.forward = false;
+    if (event.code === "ArrowDown" || event.code === "KeyS") keys.backward = false;
+    if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = false;
+    if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = false;
+    if (event.code === "Space") keys.jump = false;
+});
 
-
+let velocity = { x: 0, y: 0, z: 0 };  
+const speed = 0.15;  // Movement speed  
+const gravity = 0.02;  // Gravity force  
+const jumpStrength = 0.5;  
+let isOnGround = false;  
 
 function animate() {
     requestAnimationFrame(animate);
+
+    // Reset velocity each frame
+    velocity.x = 0;
+    velocity.z = 0;
+
+    // Movement in four directions
+    if (keys.left) velocity.x = -speed;
+    if (keys.right) velocity.x = speed;
+    if (keys.forward) velocity.z = -speed;
+    if (keys.backward) velocity.z = speed;
+
+    // Apply gravity
+    velocity.y -= gravity;
+    player.position.y += velocity.y;
+
+    // Simulate ground collision (adjust based on your level's ground height)
+    if (player.position.y <= 2.5) {  
+        player.position.y = 2.5;
+        velocity.y = 0;
+        isOnGround = true;
+    } else {
+        isOnGround = false;
+    }
+
+    // Jumping logic
+    if (keys.jump && isOnGround) {
+        velocity.y = jumpStrength;
+    }
+
+    // Apply movement
+    player.position.x += velocity.x;
+    player.position.z += velocity.z;
+
+
+    // Update camera position (smooth follow)
+    const cameraOffset = new THREE.Vector3(0, 8, 12);  // Adjust as needed
+    const targetPosition = player.position.clone().add(cameraOffset);
+
+    // Smoothly interpolate the camera's position
+    camera.position.lerp(targetPosition, 0.5);  
+
+    // Make the camera look at the player
+    camera.lookAt(player.position);
+
+
     renderer.render(scene, camera);
 }
+
 animate();
