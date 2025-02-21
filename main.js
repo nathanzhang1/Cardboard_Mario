@@ -1,3 +1,16 @@
+let gameStarted = false;
+
+// Hide title screen overlay when Enter is pressed
+document.addEventListener("keydown", (event) => {
+    if (event.code === "Enter") {
+        const titleScreen = document.getElementById("title-screen");
+        if (titleScreen) {
+            titleScreen.style.display = "none";  // Hides the overlay
+        }
+        gameStarted = true;
+    }
+});
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -135,6 +148,8 @@ function updatePlayerMovement() {
 
 function animate() {
     requestAnimationFrame(animate);
+
+    if (!gameStarted) return;
 
     // // Reset velocity each frame
     // velocity.x = 0;
