@@ -64,19 +64,35 @@ let player; // Declare player globally
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     player = gltf.scene;
 
-    // Compute bounding box to inspect the actual center
+    // Create a new group to act as the pivot point
+    const pivot = new THREE.Group();
+    scene.add(pivot);
+
+    // Compute the bounding box to find the dimensions of the model
     const box = new THREE.Box3().setFromObject(player);
-    const center = box.getCenter(new THREE.Vector3());
-    console.log("Bounding Box Center:", center); // Debugging
+    const size = box.getSize(new THREE.Vector3()); // Get the size of the bounding box
+    const center = box.getCenter(new THREE.Vector3()); // Get the center of the bounding box
 
-    // Helper: Show the pivot position
-    const pivotHelper = new THREE.AxesHelper(1);
-    player.add(pivotHelper);
+    // Debugging: Log the size and center of the bounding box
+    console.log("Bounding Box Size:", size);
+    console.log("Bounding Box Center:", center);
 
-    player.position.set(0, 2.5, 3.82);
+    // Adjust the model's position so that the pivot is at the bottom (feet)
+    player.position.sub(center); // Center the model relative to the pivot
+    player.position.y += size.y / 2; // Move the model up by half its height
 
-    scene.add(player);
+    // Add the model to the pivot group
+    pivot.add(player);
 
+    // Position the pivot group in the scene
+    pivot.position.set(0, 2.5, 3.82);
+
+    // Debugging: Add an AxesHelper to visualize the pivot point
+    const axesHelper = new THREE.AxesHelper(1);
+    pivot.add(axesHelper);
+
+    // Update your player reference to the pivot group
+    player = pivot;
 }, undefined, function (error) {
     console.error("Error loading Mario model:", error);
 });
