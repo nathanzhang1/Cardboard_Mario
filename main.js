@@ -25,7 +25,7 @@ loader.load(
     'assets/super_mario_bros._level_1_-_1.glb', 
     function (gltf) {
         const model = gltf.scene;
-        model.position.set(0, 0, 0);
+        model.position.set(65, 0, 0);
         scene.add(model);
     },
     function (xhr) {
