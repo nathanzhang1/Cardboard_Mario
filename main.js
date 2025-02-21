@@ -33,13 +33,14 @@ document.body.appendChild(renderer.domElement);
 // controls.maxDistance = 50;
 
 //Load 1-1 Model
+let level;
 const loader = new GLTFLoader();
 loader.load(
     'assets/super_mario_bros._level_1_-_1.glb', 
     function (gltf) {
-        const model = gltf.scene;
-        model.position.set(65, 0, 0);
-        scene.add(model);
+        level = gltf.scene;
+        level.position.set(65, 0, 0);
+        scene.add(level);
     },
     function (xhr) {
         console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}% loaded`);
@@ -116,6 +117,16 @@ document.addEventListener("keyup", (event) => {
     if (event.code === "Space") keys.jump = false;
 });
 
+let mapRendered = true;
+document.addEventListener("keydown", (event) => {
+
+    if (event.key == "`") {scene.remove(level);}
+
+
+});
+document.addEventListener("keyup", (event) =>{
+    if (event.key == "`"){scene.add(level);}
+});
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;  
@@ -199,7 +210,7 @@ function animate() {
     // player.position.x += velocity.x;
     // player.position.z += velocity.z;
 
-
+    //if(mapRendered){scene.add(model)}
 
     // Update player movement
     updatePlayerMovement();
