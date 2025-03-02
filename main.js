@@ -33,13 +33,25 @@ document.body.appendChild(renderer.domElement);
 // controls.maxDistance = 50;
 
 //Load 1-1 Model
+
+
+
+const geometry = new THREE.BoxGeometry(1.05, 1.05, 1.05);
+const wireframe = new THREE.WireframeGeometry(geometry);
+const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+const cube = new THREE.LineSegments(wireframe, material);
+cube.position.set(0, 1.5, 0.35);
+
+ 
 let level;
 const loader = new GLTFLoader();
+//scene.add(cube);
 loader.load(
     'assets/super_mario_bros._level_1_-_1.glb', 
     function (gltf) {
         level = gltf.scene;
-        level.position.set(65, 0, 0);
+        level.position.set(65.69, 0, 0);
+        //level.scale.set(2, 2, 2);
         scene.add(level);
     },
     function (xhr) {
@@ -49,7 +61,9 @@ loader.load(
         console.error('Error loading model:', error);
     }
 );
-
+//const box = new THREE.Box3().setFromObject(level);
+//const boxHelper = new THREE.Box3Helper(box, 0x00ff00); 
+//scene.add(boxHelper);
 
 //Create Player
 const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -117,15 +131,17 @@ document.addEventListener("keyup", (event) => {
     if (event.code === "Space") keys.jump = false;
 });
 
-let mapRendered = true;
-document.addEventListener("keydown", (event) => {
-
-    if (event.key == "`") {scene.remove(level);}
-
-
-});
+let state = 0;
 document.addEventListener("keyup", (event) =>{
-    if (event.key == "`"){scene.add(level);}
+    if (event.key == "`"){
+        state ++;
+        if((state % 3) == 1){scene.add(cube);}
+        if((state % 3) == 2){scene.remove(level);}
+        if((state % 3) == 0){scene.remove(cube); scene.add(level);}
+
+        console.log("state", state % 3);
+    
+    }
 });
 
 const controls = new OrbitControls(camera, renderer.domElement);
