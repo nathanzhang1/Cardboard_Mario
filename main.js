@@ -76,51 +76,119 @@ console.log('parts', parts);
 //scene.add(boxHelper);
 
 // //Create Player
-// const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
-// const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-// const block = new THREE.Mesh(playerGeometry, playerMaterial);
-// block.position.set(0, 2.5, 3.82);
-// scene.add(block);
-
-//camera.lookAt(player.position);
-
 let player; // Declare player globally
+let currentModel; // To keep track of the current model (idle or walking)
+let walkModel; // To store the walking model
+let idleModel; // To store the idle model
+let isWalking = false; // To check if Mario is walking
+let mirrorInterval; // To handle the mirroring effect
 
+// Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
-    player = gltf.scene;
+    idleModel = gltf.scene;
 
     // Create a new group to act as the pivot point
     const pivot = new THREE.Group();
     scene.add(pivot);
 
     // Compute the bounding box to find the dimensions of the model
-    const box = new THREE.Box3().setFromObject(player);
+    const box = new THREE.Box3().setFromObject(idleModel);
     const size = box.getSize(new THREE.Vector3()); // Get the size of the bounding box
     const center = box.getCenter(new THREE.Vector3()); // Get the center of the bounding box
 
-    // Debugging: Log the size and center of the bounding box
-    console.log("Bounding Box Size:", size);
-    console.log("Bounding Box Center:", center);
-
     // Adjust the model's position so that the pivot is at the bottom (feet)
-    player.position.sub(center); // Center the model relative to the pivot
-    player.position.y += size.y / 2; // Move the model up by half its height
+    idleModel.position.sub(center); // Center the model relative to the pivot
+    idleModel.position.y += size.y / 2; // Move the model up by half its height
 
     // Add the model to the pivot group
-    pivot.add(player);
+    pivot.add(idleModel);
 
     // Position the pivot group in the scene
     pivot.position.set(0, 2.5, 3.82);
 
-    // Debugging: Add an AxesHelper to visualize the pivot point
-    const axesHelper = new THREE.AxesHelper(1);
-    pivot.add(axesHelper);
-
     // Update your player reference to the pivot group
     player = pivot;
+    currentModel = idleModel; // Set the current model to idle
 }, undefined, function (error) {
     console.error("Error loading Mario model:", error);
 });
+
+// Load the walking model
+loader.load('assets/mario_walk.glb', function (gltf) {
+    walkModel = gltf.scene;
+
+    // Compute the bounding box to find the dimensions of the model
+    const box = new THREE.Box3().setFromObject(walkModel);
+    const size = box.getSize(new THREE.Vector3()); // Get the size of the bounding box
+    const center = box.getCenter(new THREE.Vector3()); // Get the center of the bounding box
+
+    // Center the model's geometry around its local origin
+    walkModel.position.sub(center); // Move the model so its center is at (0, 0, 0)
+
+    // Apply the initial position offset (adjust as needed)
+    walkModel.position.set(0.25, -0.7, -0.15);
+
+    // Rotate the walking model 90 degrees around the Y-axis
+    walkModel.rotation.y = (-1 * Math.PI) / 2; // 90 degrees in radians
+
+    walkModel.traverse((child) => {
+        if(child.isMesh) {
+            child.material = new THREE.MeshBasicMaterial({ map: child.material.map });
+        }
+    });
+    walkModel.visible = false; // Initially hide the walking model
+
+    // Add the walking model to the player group (pivot)
+    player.add(walkModel);
+});
+
+// Function to switch between idle and walking models
+function switchModel(isWalking) {
+    if (isWalking) {
+        if (currentModel !== walkModel) {
+            currentModel.visible = false;
+            walkModel.visible = true;
+            currentModel = walkModel;
+            startMirroring();
+        }
+    } else {
+        if (currentModel !== idleModel) {
+            currentModel.visible = false;
+            idleModel.visible = true;
+            currentModel = idleModel;
+            stopMirroring();
+        }
+    }
+}
+
+let isMirrored = false; // Track whether the model is currently mirrored
+
+// Function to start mirroring the walking model
+function startMirroring() {
+    mirrorInterval = setInterval(() => {
+        walkModel.scale.z *= -1; // Mirror the model by flipping the X scale
+        isMirrored = !isMirrored; // Toggle the mirrored state
+
+        // Adjust the position when mirroring
+        if (isMirrored) {
+            walkModel.position.x -= 0.5; // Adjust this value as needed
+        } else {
+            walkModel.position.x += 0.5; // Adjust this value as needed
+        }
+    }, 300); // Adjust the interval to control the speed of the walking effect
+}
+
+// Function to stop mirroring the walking model
+function stopMirroring() {
+    clearInterval(mirrorInterval);
+
+    // Reset the scale and position
+    if (isMirrored) {
+        walkModel.scale.z = Math.abs(walkModel.scale.x); // Reset the scale to original
+        walkModel.position.x += 0.5; // Adjust this value as needed
+        isMirrored = false; // Reset the mirrored state
+    }
+}
 
 
 //Player Controller
@@ -141,9 +209,11 @@ document.addEventListener("keyup", (event) => {
     if (event.code === "Space") keys.jump = false;
 });
 
+
 let state = 0;
 let appear = true;
 let stuff;
+
 document.addEventListener("keyup", (event) =>{
     if (event.key == "`"){
         state ++;
@@ -174,6 +244,8 @@ document.addEventListener("keyup", (event) =>{
     }
 });
 
+
+//Camera Controller
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;  
 controls.dampingFactor = 0.1;
@@ -181,8 +253,7 @@ controls.enablePan = false;
 controls.minDistance = 3;  // Min zoom
 controls.maxDistance = 10; // Max zoom
 
-
-
+//Physics Variables
 let velocity = { x: 0, y: 0, z: 0 };  
 const speed = 0.15;  // Movement speed  
 const gravity = 0.02;  // Gravity force  
@@ -268,6 +339,10 @@ function animate() {
     // Update player movement
     updatePlayerMovement();
 
+    // Check if Mario is walking
+    isWalking = keys.forward || keys.backward || keys.left || keys.right;
+    switchModel(isWalking);
+    
     // Calculate the offset from the player based on the camera's current direction
     let offset = new THREE.Vector3();
     offset.subVectors(camera.position, controls.target); // Get current offset from target
