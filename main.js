@@ -17,6 +17,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Set up scene, camera, renderer
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x6185f8);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 8, 12);
@@ -65,12 +66,12 @@ loader.load(
 //const boxHelper = new THREE.Box3Helper(box, 0x00ff00); 
 //scene.add(boxHelper);
 
-//Create Player
-const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
-const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-const block = new THREE.Mesh(playerGeometry, playerMaterial);
-block.position.set(0, 2.5, 3.82);
-scene.add(block);
+// //Create Player
+// const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
+// const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+// const block = new THREE.Mesh(playerGeometry, playerMaterial);
+// block.position.set(0, 2.5, 3.82);
+// scene.add(block);
 
 //camera.lookAt(player.position);
 
@@ -160,6 +161,11 @@ const jumpStrength = 0.5;
 let isOnGround = false;  
 
 
+// Create a raycaster once (outside the function) so we don't create a new one every frame.
+const raycaster = new THREE.Raycaster();
+const collisionDistance = 0.5; // Distance threshold to detect collisions
+
+
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
 
@@ -179,6 +185,22 @@ function updatePlayerMovement() {
         if (keys.right) moveDirection.sub(right);
 
         moveDirection.normalize().multiplyScalar(speed);
+
+        // Set up the raycaster:
+        // Start at the current player position and cast a ray in the moveDirection
+        raycaster.set(player.position, moveDirection.clone().normalize());
+        
+        // Check for intersections with the level model (recursive to check all children)
+        const intersections = raycaster.intersectObject(level, true);
+
+        // If an intersection is detected within collisionDistance, cancel movement
+        if (intersections.length > 0 && intersections[0].distance < collisionDistance) {
+            // Optionally, you could adjust movement so Mario "slides" along the object.
+            // For now, we simply block further movement in this direction.
+            return;
+        }
+
+        // If no collision is detected, apply the movement:
         player.position.add(moveDirection);
 
         // Rotate Mario to face movement direction
@@ -193,16 +215,6 @@ function animate() {
     requestAnimationFrame(animate);
 
     if (!gameStarted) return;
-
-    // // Reset velocity each frame
-    // velocity.x = 0;
-    // velocity.z = 0;
-
-    // // Movement in four directions
-    // if (keys.left) velocity.x = -speed;
-    // if (keys.right) velocity.x = speed;
-    // if (keys.forward) velocity.z = -speed;
-    // if (keys.backward) velocity.z = speed;
 
     // Apply gravity
     velocity.y -= gravity;
@@ -222,10 +234,6 @@ function animate() {
         velocity.y = jumpStrength;
     }
 
-    // // Apply movement
-    // player.position.x += velocity.x;
-    // player.position.z += velocity.z;
-
     //if(mapRendered){scene.add(model)}
 
     // Update player movement
@@ -243,18 +251,6 @@ function animate() {
 
     // Update OrbitControls without changing its orientation
     controls.update();
-
-
-
-    // // Update camera position (smooth follow)
-    // const cameraOffset = new THREE.Vector3(0, 8, 12);  // Adjust as needed
-    // const targetPosition = player.position.clone().add(cameraOffset);
-
-    // // Smoothly interpolate the camera's position
-    // camera.position.lerp(targetPosition, 0.5);  
-
-    // // Make the camera look at the player
-    // camera.lookAt(player.position);
 
 
     renderer.render(scene, camera);
