@@ -45,23 +45,32 @@ cube.position.set(0, 1.5, 0.35);
 
  
 let level;
+let parts = {};
 const loader = new GLTFLoader();
 //scene.add(cube);
 loader.load(
-    'assets/super_mario_bros._level_1_-_1.glb', 
+    'assets/namedLevel.glb', 
     function (gltf) {
         level = gltf.scene;
         level.position.set(65.69, 0, 0);
         //level.scale.set(2, 2, 2);
         scene.add(level);
+        level.traverse((child) => {
+            console.log(child.name);
+            parts[child.name] = child;
+        })
     },
     function (xhr) {
         console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}% loaded`);
     },
     function (error) {
         console.error('Error loading model:', error);
-    }
+    },
+    
 );
+console.log('parts', parts);
+
+
 //const box = new THREE.Box3().setFromObject(level);
 //const boxHelper = new THREE.Box3Helper(box, 0x00ff00); 
 //scene.add(boxHelper);
@@ -133,6 +142,8 @@ document.addEventListener("keyup", (event) => {
 });
 
 let state = 0;
+let appear = true;
+let stuff;
 document.addEventListener("keyup", (event) =>{
     if (event.key == "`"){
         state ++;
@@ -142,6 +153,24 @@ document.addEventListener("keyup", (event) =>{
 
         console.log("state", state % 3);
     
+    }
+
+    if(event.key == 'p'){
+        if(appear){
+            appear = false; 
+            stuff = parts['Object_4'];
+            console.log(stuff);
+            scene.remove(stuff);
+            console.log('part removed')
+        }
+        else if (!appear){
+            appear = true; 
+            stuff = parts['Object_4'];
+            console.log(stuff);
+            stuff.scale.set(100, 100, 100);
+            scene.add(stuff);
+            console.log('part added');
+        }
     }
 });
 
