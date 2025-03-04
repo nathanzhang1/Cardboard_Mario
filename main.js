@@ -46,6 +46,10 @@ cube.position.set(0, 1.5, 0.35);
  
 let level;
 let parts = {};
+let levelBoxes = [];
+let levelBoxHelpers = [];
+
+
 const loader = new GLTFLoader();
 //scene.add(cube);
 loader.load(
@@ -58,6 +62,15 @@ loader.load(
         level.traverse((child) => {
             console.log(child.name);
             parts[child.name] = child;
+
+            // Create a bounding box for each part
+            const childBox = new THREE.Box3().setFromObject(child);
+            levelBoxes.push(childBox);
+
+            // Create a BoxHelper for each level part to visualize the bounding box
+            const boxHelper = new THREE.BoxHelper(child, 0xff0000);  // Red box for each part
+            levelBoxHelpers.push(boxHelper);
+            scene.add(boxHelper);  // Add BoxHelper to the scene
         })
     },
     function (xhr) {
@@ -82,6 +95,7 @@ let walkModel; // To store the walking model
 let idleModel; // To store the idle model
 let isWalking = false; // To check if Mario is walking
 let mirrorInterval; // To handle the mirroring effect
+let playerBox; // Mario bounding box
 
 // Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
@@ -109,9 +123,20 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     // Update your player reference to the pivot group
     player = pivot;
     currentModel = idleModel; // Set the current model to idle
+
+    // Create custom bounding box dimensions for the player (manually set dimensions)
+    const playerBoxSize = new THREE.Vector3(2, 3, 1); // Set the width, height, and depth (x, y, z)
+    const playerBoxCenter = player.position; // Position of the player's bounding box
+
+    // Create a custom bounding box for the player
+    playerBox = new THREE.Box3().setFromCenterAndSize(playerBoxCenter, playerBoxSize);
+    let playerBoxHelper = new THREE.BoxHelper(player, 0x00ff00);  // Green box for the player
+    scene.add(playerBoxHelper);
+
 }, undefined, function (error) {
     console.error("Error loading Mario model:", error);
 });
+
 
 // Load the walking model
 loader.load('assets/mario_walk.glb', function (gltf) {
@@ -260,11 +285,21 @@ const gravity = 0.02;  // Gravity force
 const jumpStrength = 0.5;  
 let isOnGround = false;  
 
+// Function to check if the player is colliding with any object
+function checkCollisions() {
+    // Update the player's bounding box based on current position
+    playerBox.setFromObject(player);
 
-// Create a raycaster once (outside the function) so we don't create a new one every frame.
-const raycaster = new THREE.Raycaster();
-const collisionDistance = 0.5; // Distance threshold to detect collisions
+    // Check collision with level parts
+    for (let i = 0; i < levelBoxes.length; i++) {
+        if (playerBox.intersectsBox(levelBoxes[i])) {
+            console.log('Collision detected with: ', parts[Object.keys(parts)[i]]);
+            return true; // Collision detected
+        }
+    }
 
+    return false; // No collision
+}
 
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
@@ -286,22 +321,17 @@ function updatePlayerMovement() {
 
         moveDirection.normalize().multiplyScalar(speed);
 
-        // Set up the raycaster:
-        // Start at the current player position and cast a ray in the moveDirection
-        raycaster.set(player.position, moveDirection.clone().normalize());
-        
-        // Check for intersections with the level model (recursive to check all children)
-        const intersections = raycaster.intersectObject(level, true);
+        // Temporarily apply the movement
+        let newPosition = player.position.clone().add(moveDirection);
 
-        // If an intersection is detected within collisionDistance, cancel movement
-        if (intersections.length > 0 && intersections[0].distance < collisionDistance) {
-            // Optionally, you could adjust movement so Mario "slides" along the object.
-            // For now, we simply block further movement in this direction.
-            return;
+        // Set the player's new position only if there's no collision
+        player.position.set(newPosition.x, player.position.y, newPosition.z);
+
+        // Check if the new position collides
+        if (checkCollisions()) {
+            // Revert to previous position if there's a collision
+            player.position.set(player.position.x - moveDirection.x, player.position.y, player.position.z - moveDirection.z);
         }
-
-        // If no collision is detected, apply the movement:
-        player.position.add(moveDirection);
 
         // Rotate Mario to face movement direction
         if (moveDirection.length() > 0) {
