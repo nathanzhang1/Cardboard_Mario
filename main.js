@@ -21,21 +21,10 @@ scene.background = new THREE.Color(0x6185f8);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 8, 12);
-//camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
-
-// const controls = new OrbitControls(camera, renderer.domElement);
-// controls.target.set(0, 0, 0);
-// controls.enabled = true;
-// controls.minDistance = 10;
-// controls.maxDistance = 50;
-
-//Load 1-1 Model
-
-
 
 const geometry = new THREE.BoxGeometry(1.05, 1.05, 1.05);
 const wireframe = new THREE.WireframeGeometry(geometry);
@@ -69,11 +58,6 @@ loader.load(
     
 );
 console.log('parts', parts);
-
-
-//const box = new THREE.Box3().setFromObject(level);
-//const boxHelper = new THREE.Box3Helper(box, 0x00ff00); 
-//scene.add(boxHelper);
 
 // //Create Player
 let player; // Declare player globally
@@ -110,7 +94,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(0, 2.5, 3.82);
+    pivot.position.set(200, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -270,9 +254,9 @@ let isOnGround = false;
 // Create a raycaster once (outside the function) so we don't create a new one every frame.
 const forwardRaycaster = new THREE.Raycaster();
 const upwardRaycaster = new THREE.Raycaster();
-const collisionDistance = 0.5; // Distance threshold to detect collisions
+const downwardRaycaster = new THREE.Raycaster();
 
-let forwardArrow, upwardArrow;
+let forwardArrow, upwardArrow, downwardArrow;
 function visualizeRay(origin, direction, existingArrow) {
     if (existingArrow) scene.remove(existingArrow); // Remove the previous arrow
     const length = 5;
@@ -289,39 +273,34 @@ function updatePlayerMovement() {
     if (keys.forward || keys.backward || keys.left || keys.right) {
         // Get camera's forward direction
         camera.getWorldDirection(direction);
-        direction.y = 0;
+        direction.y = 0; // Ignore vertical movement for forward direction
         right.crossVectors(camera.up, direction).normalize();
 
         // Calculate movement direction based on input
-        let moveDirection = new THREE.Vector3();
+        moveDirection.set(0, 0, 0); // Reset move direction
         if (keys.forward) moveDirection.add(direction);
         if (keys.backward) moveDirection.sub(direction);
         if (keys.left) moveDirection.add(right);
         if (keys.right) moveDirection.sub(right);
 
         moveDirection.normalize().multiplyScalar(speed);
+    }
 
-        // Update forward ray origin to follow the player's position (adjusted by height)
-        let forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 1, 0));
-        forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
+    // Update forward ray origin to follow the player's position (adjusted by height)
+    let forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 1.1, 0));  // Adjust for player height
+    forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
 
-        forwardArrow = visualizeRay(forwardRayOrigin, moveDirection, forwardArrow);
-        
-        const forwardIntersections = forwardRaycaster.intersectObject(level, true);
+    // Visualize the forward ray with the arrow
+    forwardArrow = visualizeRay(forwardRayOrigin, moveDirection, forwardArrow);
+
+    // Perform raycasting to detect obstacles
+    const forwardIntersections = forwardRaycaster.intersectObject(level, true);
+
+    // If an intersection is detected within collisionDistance, prevent forward movement ONLY
+    let canMoveForward = true;
+    if (forwardIntersections.length > 0 && forwardIntersections[0].distance < 0.5) {
         console.log("forward intersections", forwardIntersections);
-
-        // If an intersection is detected within collisionDistance, cancel movement
-        if (forwardIntersections.length > 0 && forwardIntersections[0].distance < collisionDistance) {
-            return;
-        }
-
-        // If no collision is detected, apply the movement:
-        player.position.add(moveDirection);
-
-        // Rotate Mario to face movement direction
-        if (moveDirection.length() > 0) {
-            player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
-        }
+        canMoveForward = false;
     }
 
     // Jumping logic
@@ -333,50 +312,57 @@ function updatePlayerMovement() {
     // Apply gravity
     velocity.y -= gravity;
 
-    let upwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, marioSize.y, 0));
-    upwardRaycaster.set(upwardRayOrigin, new THREE.Vector3(0, 1, 0));
+    // Update the upward ray for collision detection during jump (to check for ceiling)
+    let upwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, marioSize.y, 0)); // Adjust for player height
+    upwardRaycaster.set(upwardRayOrigin, new THREE.Vector3(0, 1, 0));  // Cast upward
 
+    // Visualize the upward ray
     upwardArrow = visualizeRay(upwardRayOrigin, new THREE.Vector3(0, 1, 0), upwardArrow);
 
+    // Check if there’s an intersection with a ceiling (to stop upward movement)
     const upwardIntersections = upwardRaycaster.intersectObject(level, true);
-    console.log("upward intersections", upwardIntersections);
-
     if (upwardIntersections.length > 0 && upwardIntersections[0].distance < 0.1) {
+        console.log("upward intersections", upwardIntersections);
         velocity.y = Math.min(velocity.y, 0);  // Stop upward movement if hitting a ceiling
     }
 
+    // Apply gravity (affect vertical movement)
     player.position.y += velocity.y;
 
-    // Update the forwardRay origin and direction during jumping (same as ground movement)
-    let forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 1.5, 0));  // Adjust for player height
-    forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize()); // Update the forwardRay’s direction dynamically
-}
+    // Ground collision detection (to land)
+    let downwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.01, 0));
+    downwardRaycaster.set(downwardRayOrigin, new THREE.Vector3(0, -1, 0));  // Cast downward
 
+    // Visualize the upward ray
+    downwardArrow = visualizeRay(downwardRayOrigin, new THREE.Vector3(0, -1, 0), downwardArrow);
+
+    const downwardIntersections = downwardRaycaster.intersectObject(level, true);
+    if (downwardIntersections.length > 0 && downwardIntersections[0].distance < 0.5) {
+        console.log("downward intersections", downwardIntersections);
+        isOnGround = true;
+        velocity.y = 0;  // Stop downward movement
+        player.position.y = downwardIntersections[0].point.y + 0.1; // Place player just above the ground
+    }
+
+    // Move player **ONLY IF NO FORWARD COLLISION**, but still allow gravity!
+    if (canMoveForward) {
+        player.position.add(moveDirection);
+    }
+
+    // Rotate player to face movement direction if moving
+    if (canMoveForward && moveDirection.length() > 0) {
+        player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
+    }
+
+    // Update the forward ray dynamically with jumping motion
+    forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 1.5, 0)); // Adjust for player height
+    forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
+}
 
 function animate() {
     requestAnimationFrame(animate);
 
     if (!gameStarted) return;
-
-    // // Apply gravity
-    // velocity.y -= gravity;
-    // player.position.y += velocity.y;
-
-    // Simulate ground collision (adjust based on your level's ground height)
-    if (player.position.y <= 2) {  
-        player.position.y = 2;
-        velocity.y = 0;
-        isOnGround = true;
-    } else {
-        isOnGround = false;
-    }
-
-    // // Jumping logic
-    // if (keys.jump && isOnGround) {
-    //     velocity.y = jumpStrength;
-    // }
-
-    //if(mapRendered){scene.add(model)}
 
     // Update player movement
     updatePlayerMovement();
