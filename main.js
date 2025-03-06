@@ -57,7 +57,9 @@ let player; // Declare player globally
 let currentModel; // To keep track of the current model (idle or walking)
 let walkModel; // To store the walking model
 let idleModel; // To store the idle model
+let jumpModel; // To store the jumping model
 let isWalking = false; // To check if Mario is walking
+let isJumping = false; // To check if Mario is jumping
 let mirrorInterval; // To handle the mirroring effect
 
 // Load the idle model
@@ -119,9 +121,50 @@ loader.load('assets/mario_walk.glb', function (gltf) {
     player.add(walkModel);
 });
 
-// Function to switch between idle and walking models
-function switchModel(isWalking) {
-    if (isWalking) {
+//Load the jump model
+loader.load('assets/voxel_mario_amiibo.glb', function (gltf) {
+    jumpModel = gltf.scene;
+
+    // Compute the bounding box to find the dimensions of the model
+    const box = new THREE.Box3().setFromObject(jumpModel);
+    const size = box.getSize(new THREE.Vector3()); // Get the size of the bounding box
+    const center = box.getCenter(new THREE.Vector3()); // Get the center of the bounding box
+
+    // Center the model's geometry around its local origin
+    jumpModel.position.sub(center); // Move the model so its center is at (0, 0, 0)
+
+    // Apply the initial position offset (adjust as needed)
+    jumpModel.position.set(0, -0.7, -0.15);
+
+    // Rotate the jumping model 90 degrees around the Y-axis
+    //jumpModel.rotation.y = (-1 * Math.PI) / 2; // 90 degrees in radians
+
+    // Rescale the jumping model (adjust the values as needed)
+    jumpModel.scale.set(0.1, 0.1, 0.1); // Scale down to 50% of the original size
+
+    jumpModel.traverse((child) => {
+        if(child.isMesh) {
+            child.material = new THREE.MeshBasicMaterial({ map: child.material.map });
+        }
+    });
+    jumpModel.visible = false; // Initially hide the jumping model
+
+    // Add the jumping model to the player group (pivot)
+    player.add(jumpModel);
+});
+
+// Function to switch between idle, walking, and jumping models
+function switchModel(isWalking, isJumping) {
+    if (isJumping) {
+        // Activate the jumping model
+        if (currentModel !== jumpModel) {
+            currentModel.visible = false;
+            jumpModel.visible = true;
+            currentModel = jumpModel;
+            stopMirroring(); // Stop mirroring if it was active
+        }
+    } else if (isWalking) {
+        // Activate the walking model
         if (currentModel !== walkModel) {
             currentModel.visible = false;
             walkModel.visible = true;
@@ -129,6 +172,7 @@ function switchModel(isWalking) {
             startMirroring();
         }
     } else {
+        // Activate the idle model
         if (currentModel !== idleModel) {
             currentModel.visible = false;
             idleModel.visible = true;
@@ -152,7 +196,7 @@ function startMirroring() {
         } else {
             walkModel.position.x += 0.5; // Adjust this value as needed
         }
-    }, 300); // Adjust the interval to control the speed of the walking effect
+    }, 250); // Adjust the interval to control the speed of the walking effect
 }
 
 // Function to stop mirroring the walking model
@@ -289,9 +333,12 @@ function animate() {
     // Update player movement
     updatePlayerMovement();
 
-    // Check if Mario is walking
+    // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
-    switchModel(isWalking);
+    isJumping = !isOnGround; // Mario is jumping if he's not on the ground
+
+    // Switch models based on walking and jumping states
+    switchModel(isWalking, isJumping);
     
     // Calculate the offset from the player based on the camera's current direction
     let offset = new THREE.Vector3();
