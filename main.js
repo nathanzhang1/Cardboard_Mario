@@ -87,7 +87,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(200, 2.5, 3.82);
+    pivot.position.set(5, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -254,7 +254,7 @@ const downwardCollisionDist = 0.5;
 
 let forwardArrow, upwardArrows = [], downwardArrows = [];
 function visualizeRay(origin, direction, existingArrow) {
-    if (existingArrow) scene.remove(existingArrow); // Remove the previous arrow
+    if (existingArrow) scene.remove(existingArrow);
     const length = 5;
     const arrowHelper = new THREE.ArrowHelper(direction.clone().normalize(), origin, length, 0xffff00);
     scene.add(arrowHelper);
@@ -264,7 +264,7 @@ function visualizeRay(origin, direction, existingArrow) {
 // Function to rotate a vector by Mario's rotation
 function rotateVector(vector, rotationY) {
     let quaternion = new THREE.Quaternion();
-    quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY); // Rotate around Y-axis
+    quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY);
     return vector.clone().applyQuaternion(quaternion);
 }
 
@@ -290,7 +290,7 @@ function updatePlayerMovement() {
     }
 
     // Update forward ray origin to follow the player's position (adjusted by height)
-    let forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.3, 0));  // Adjust for player height
+    let forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.3, 0));
     forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
 
     // Visualize the forward ray with the arrow
@@ -305,14 +305,13 @@ function updatePlayerMovement() {
 
     // Jumping logic
     if (keys.jump && isOnGround) {
-        velocity.y = jumpStrength;  // Apply jump force
-        isOnGround = false;  // The player is now in the air
+        velocity.y = jumpStrength;
+        isOnGround = false;
     }
 
     // Apply gravity
     velocity.y -= gravity;
 
-    // Multi-ray collision detection for ceilings
     // **ROTATE HEAD AND FOOT CORNERS ACCORDING TO MARIO'S ROTATION**
     const headCorners = [
         new THREE.Vector3(-0.25, marioSize.y, -0.25), 
@@ -373,7 +372,7 @@ function updatePlayerMovement() {
     }
 
     // Update the forward ray dynamically with jumping motion
-    forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.3, 0)); // Adjust for player height
+    forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.3, 0));
     forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
 }
 
