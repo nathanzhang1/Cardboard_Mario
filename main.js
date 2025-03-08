@@ -21,28 +21,10 @@ scene.background = new THREE.Color(0x6185f8);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 8, 12);
-//camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
-
-// const controls = new OrbitControls(camera, renderer.domElement);
-// controls.target.set(0, 0, 0);
-// controls.enabled = true;
-// controls.minDistance = 10;
-// controls.maxDistance = 50;
-
-//Load 1-1 Model
-
-
-
-const geometry = new THREE.BoxGeometry(1.05, 1.05, 1.05);
-const wireframe = new THREE.WireframeGeometry(geometry);
-const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
-const cube = new THREE.LineSegments(wireframe, material);
-cube.position.set(0, 1.5, 0.35);
-
  
 let level;
 let parts = {};
@@ -70,11 +52,6 @@ loader.load(
 );
 console.log('parts', parts);
 
-
-//const box = new THREE.Box3().setFromObject(level);
-//const boxHelper = new THREE.Box3Helper(box, 0x00ff00); 
-//scene.add(boxHelper);
-
 // //Create Player
 let player; // Declare player globally
 let currentModel; // To keep track of the current model (idle or walking)
@@ -85,18 +62,24 @@ let isWalking = false; // To check if Mario is walking
 let isJumping = false; // To check if Mario is jumping
 let mirrorInterval; // To handle the mirroring effect
 
+let marioSize;
+let marioCenter;
+
 // Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     idleModel = gltf.scene;
-
-    // Create a new group to act as the pivot point
-    const pivot = new THREE.Group();
-    scene.add(pivot);
 
     // Compute the bounding box to find the dimensions of the model
     const box = new THREE.Box3().setFromObject(idleModel);
     const size = box.getSize(new THREE.Vector3()); // Get the size of the bounding box
     const center = box.getCenter(new THREE.Vector3()); // Get the center of the bounding box
+
+    marioSize = size;
+    marioCenter = center;
+
+    // Create a new group to act as the pivot point
+    const pivot = new THREE.Group();
+    scene.add(pivot);
 
     // Adjust the model's position so that the pivot is at the bottom (feet)
     idleModel.position.sub(center); // Center the model relative to the pivot
@@ -106,7 +89,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(0, 2.5, 3.82);
+    pivot.position.set(5, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -306,79 +289,180 @@ let isOnGround = false;
 
 
 // Create a raycaster once (outside the function) so we don't create a new one every frame.
-const raycaster = new THREE.Raycaster();
-const collisionDistance = 0.5; // Distance threshold to detect collisions
+const forwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster()];
+const upwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
+const downwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
+const forwardCollisionDist = 0.5;
+const upwardCollisionDist = 0.1;
+const downwardCollisionDist = 0.5;
 
+let showRays = false;
+let forwardArrows = [], upwardArrows = [], downwardArrows = [];
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "r" || event.key === "R") {
+        showRays = !showRays;
+        updateRayVisibility();
+    }
+});
+
+function updateRayVisibility() {
+    forwardArrows.forEach(arrow => {
+        if (arrow) arrow.visible = showRays;
+    });
+
+    upwardArrows.forEach(arrow => {
+        if (arrow) arrow.visible = showRays;
+    });
+
+    downwardArrows.forEach(arrow => {
+        if (arrow) arrow.visible = showRays;
+    });
+}
+
+function visualizeRay(origin, direction, existingArrow) {
+    if (!showRays) return existingArrow; // Don't create or modify if rays are hidden
+
+    if (existingArrow) {
+        existingArrow.position.copy(origin);
+        existingArrow.setDirection(direction.clone().normalize());
+        return existingArrow;
+    }
+
+    const length = 5;
+    const arrowHelper = new THREE.ArrowHelper(direction.clone().normalize(), origin, length, 0xffff00);
+    arrowHelper.visible = showRays; // Respect visibility state
+    scene.add(arrowHelper);
+    return arrowHelper;
+}
+
+function rotateVector(vector, rotationY) {
+    let quaternion = new THREE.Quaternion();
+    quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY);
+    return vector.clone().applyQuaternion(quaternion);
+}
 
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
+    let moveDirection = new THREE.Vector3();
+    let right = new THREE.Vector3();
 
     if (keys.forward || keys.backward || keys.left || keys.right) {
         // Get camera's forward direction
         camera.getWorldDirection(direction);
-        direction.y = 0; // Ignore vertical movement
-
-        let right = new THREE.Vector3();
-        right.crossVectors(camera.up, direction).normalize(); // Get right vector
+        direction.y = 0; // Ignore vertical movement for forward direction
+        right.crossVectors(camera.up, direction).normalize();
 
         // Calculate movement direction based on input
-        let moveDirection = new THREE.Vector3();
+        moveDirection.set(0, 0, 0); // Reset move direction
         if (keys.forward) moveDirection.add(direction);
         if (keys.backward) moveDirection.sub(direction);
         if (keys.left) moveDirection.add(right);
         if (keys.right) moveDirection.sub(right);
 
         moveDirection.normalize().multiplyScalar(speed);
-
-        // Set up the raycaster:
-        // Start at the current player position and cast a ray in the moveDirection
-        raycaster.set(player.position, moveDirection.clone().normalize());
-        
-        // Check for intersections with the level model (recursive to check all children)
-        const intersections = raycaster.intersectObject(level, true);
-
-        // If an intersection is detected within collisionDistance, cancel movement
-        if (intersections.length > 0 && intersections[0].distance < collisionDistance) {
-            // Optionally, you could adjust movement so Mario "slides" along the object.
-            // For now, we simply block further movement in this direction.
-            return;
-        }
-
-        // If no collision is detected, apply the movement:
-        player.position.add(moveDirection);
-
-        // Rotate Mario to face movement direction
-        if (moveDirection.length() > 0) {
-            player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
-        }
     }
-}
 
+    // Update forward ray origin to follow the player's position (adjusted by height)
+    let forwardRayOrigins = [
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))
+    ];
 
-function animate() {
-    requestAnimationFrame(animate);
+    let canMoveForward = true;
+    for (let i = 0; i < 2; i++) {
+        forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
+        forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
 
-    if (!gameStarted) return;
-
-    // Apply gravity
-    velocity.y -= gravity;
-    player.position.y += velocity.y;
-
-    // Simulate ground collision (adjust based on your level's ground height)
-    if (player.position.y <= 2) {  
-        player.position.y = 2;
-        velocity.y = 0;
-        isOnGround = true;
-    } else {
-        isOnGround = false;
+        const forwardIntersections = forwardRaycasters[i].intersectObject(level, true);
+        if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
+            canMoveForward = false;
+        }
     }
 
     // Jumping logic
     if (keys.jump && isOnGround) {
         velocity.y = jumpStrength;
+        isOnGround = false;
     }
 
-    //if(mapRendered){scene.add(model)}
+    // Apply gravity
+    velocity.y -= gravity;
+
+    // **ROTATE HEAD AND FOOT CORNERS ACCORDING TO MARIO'S ROTATION**
+    const headCorners = [
+        new THREE.Vector3(-0.25, marioSize.y, -0.25), 
+        new THREE.Vector3(0.25, marioSize.y, -0.25),  
+        new THREE.Vector3(-0.25, marioSize.y, 0.35),  
+        new THREE.Vector3(0.25, marioSize.y, 0.35)   
+    ].map(corner => rotateVector(corner, player.rotation.y).add(player.position));
+
+    let hitCeiling = false;
+    for (let i = 0; i < 4; i++) {
+        upwardRaycasters[i].set(headCorners[i], new THREE.Vector3(0, 1, 0));
+        upwardArrows[i] = visualizeRay(headCorners[i], new THREE.Vector3(0, 1, 0), upwardArrows[i]);
+
+        const upwardIntersections = upwardRaycasters[i].intersectObject(level, true);
+        if (upwardIntersections.length > 0 && upwardIntersections[0].distance < upwardCollisionDist) {
+            hitCeiling = true;
+        }
+    }
+
+    if (hitCeiling) {
+        velocity.y = Math.min(velocity.y, 0);
+    }
+
+    // Apply gravity (affect vertical movement)
+    player.position.y += velocity.y;
+
+    // Multi-ray ground detection
+    const footCorners = [
+        new THREE.Vector3(-0.45, 0, -0.25),  
+        new THREE.Vector3(0.45, 0, -0.25),   
+        new THREE.Vector3(-0.45, 0, 0.05),   
+        new THREE.Vector3(0.45, 0, 0.05)     
+    ].map(corner => rotateVector(corner, player.rotation.y).add(player.position));
+
+    let onGround = false;
+    for (let i = 0; i < 4; i++) {
+        downwardRaycasters[i].set(footCorners[i], new THREE.Vector3(0, -1, 0));
+        downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
+
+        const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
+        if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
+            onGround = true;
+            player.position.y = downwardIntersections[0].point.y + 0.1;
+            velocity.y = 0;
+        }
+    }
+
+    isOnGround = onGround;
+
+    // Move player **ONLY IF NO FORWARD COLLISION**, but still allow gravity!
+    if (canMoveForward) {
+        player.position.add(moveDirection);
+    }
+
+    // Rotate player to face movement direction if moving
+    if (canMoveForward && moveDirection.length() > 0) {
+        player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
+    }
+
+    // Update the forward ray dynamically with jumping motion
+    forwardRayOrigins = [
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), // Left edge
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))  // Right edge
+    ];
+    
+    for (let i = 0; i < 2; i++) {
+        forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (!gameStarted) return;
 
     // Update player movement
     updatePlayerMovement();
