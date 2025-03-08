@@ -245,23 +245,53 @@ let isOnGround = false;
 
 
 // Create a raycaster once (outside the function) so we don't create a new one every frame.
-const forwardRaycaster = new THREE.Raycaster();
+const forwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster()];
 const upwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const downwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const forwardCollisionDist = 0.5;
 const upwardCollisionDist = 0.1;
 const downwardCollisionDist = 0.5;
 
-let forwardArrow, upwardArrows = [], downwardArrows = [];
+let showRays = false;
+let forwardArrows = [], upwardArrows = [], downwardArrows = [];
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "r" || event.key === "R") {
+        showRays = !showRays;
+        updateRayVisibility();
+    }
+});
+
+function updateRayVisibility() {
+    forwardArrows.forEach(arrow => {
+        if (arrow) arrow.visible = showRays;
+    });
+
+    upwardArrows.forEach(arrow => {
+        if (arrow) arrow.visible = showRays;
+    });
+
+    downwardArrows.forEach(arrow => {
+        if (arrow) arrow.visible = showRays;
+    });
+}
+
 function visualizeRay(origin, direction, existingArrow) {
-    if (existingArrow) scene.remove(existingArrow);
+    if (!showRays) return existingArrow; // Don't create or modify if rays are hidden
+
+    if (existingArrow) {
+        existingArrow.position.copy(origin);
+        existingArrow.setDirection(direction.clone().normalize());
+        return existingArrow;
+    }
+
     const length = 5;
     const arrowHelper = new THREE.ArrowHelper(direction.clone().normalize(), origin, length, 0xffff00);
+    arrowHelper.visible = showRays; // Respect visibility state
     scene.add(arrowHelper);
     return arrowHelper;
 }
 
-// Function to rotate a vector by Mario's rotation
 function rotateVector(vector, rotationY) {
     let quaternion = new THREE.Quaternion();
     quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY);
@@ -290,17 +320,20 @@ function updatePlayerMovement() {
     }
 
     // Update forward ray origin to follow the player's position (adjusted by height)
-    let forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.3, 0));
-    forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
+    let forwardRayOrigins = [
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))
+    ];
 
-    // Visualize the forward ray with the arrow
-    forwardArrow = visualizeRay(forwardRayOrigin, moveDirection, forwardArrow);
-
-    // If an intersection is detected within collisionDistance, prevent forward movement ONLY
-    const forwardIntersections = forwardRaycaster.intersectObject(level, true);
     let canMoveForward = true;
-    if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
-        canMoveForward = false;
+    for (let i = 0; i < 2; i++) {
+        forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
+        forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
+
+        const forwardIntersections = forwardRaycasters[i].intersectObject(level, true);
+        if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
+            canMoveForward = false;
+        }
     }
 
     // Jumping logic
@@ -372,8 +405,14 @@ function updatePlayerMovement() {
     }
 
     // Update the forward ray dynamically with jumping motion
-    forwardRayOrigin = player.position.clone().add(new THREE.Vector3(0, 0.3, 0));
-    forwardRaycaster.set(forwardRayOrigin, moveDirection.clone().normalize());
+    forwardRayOrigins = [
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), // Left edge
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))  // Right edge
+    ];
+    
+    for (let i = 0; i < 2; i++) {
+        forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
+    }
 }
 
 function animate() {
