@@ -31,14 +31,17 @@ let parts = {};
 const loader = new GLTFLoader();
 //scene.add(cube);
 loader.load(
-    'assets/namedLevel.glb', 
+    'assets/marioLevel.glb', 
     function (gltf) {
         level = gltf.scene;
         level.position.set(65.69, 0, 0);
         //level.scale.set(2, 2, 2);
         scene.add(level);
         level.traverse((child) => {
-            console.log(child.name);
+            if(child.name == 'pipeTop001')
+            {
+                console.log('pipeTop001',child);
+            }
             parts[child.name] = child;
         })
     },
