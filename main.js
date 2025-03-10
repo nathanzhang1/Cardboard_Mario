@@ -301,7 +301,7 @@ const upwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THRE
 const downwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const forwardCollisionDist = 0.5;
 const upwardCollisionDist = 0.1;
-const downwardCollisionDist = 0.5;
+const downwardCollisionDist = 0.55;
 
 let showRays = false;
 let forwardArrows = [], upwardArrows = [], downwardArrows = [];
@@ -499,6 +499,12 @@ function updatePlayerMovement() {
     
     for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
+    }
+
+    if (player.position.y <= -30) {  // If Mario falls below y = -30
+        // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
+        player.position.copy(new THREE.Vector3(5, 5, 3.82)); 
+        console.log("Mario fell to his death! Resetting position.");
     }
 }
 
