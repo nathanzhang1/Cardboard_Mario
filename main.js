@@ -296,7 +296,7 @@ let isOnGround = false;
 
 
 // Create a raycaster once (outside the function) so we don't create a new one every frame.
-const forwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster()];
+const forwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const upwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const downwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const forwardCollisionDist = 0.5;
@@ -349,7 +349,7 @@ function rotateVector(vector, rotationY) {
     return vector.clone().applyQuaternion(quaternion);
 }
 
-
+// For making blocks bounce when hit by Mario's head
 let bouncingBlocks = [];
 
 function bounceBlock(block) {
@@ -357,6 +357,24 @@ function bounceBlock(block) {
 
     bouncingBlocks.push({ block, startY: block.position.y, upY: block.position.y + 0.5, direction: 1 });
 }
+
+// let coinCount = 0;
+// let collectedCoins = new Set(); // Track collected coins
+
+// function checkCoinCollection(raycasters) {
+//     raycasters.forEach(raycaster => {
+//         const intersections = raycaster.intersectObject(level, true);
+
+//         intersections.forEach(intersection => {
+//             let coin = intersection.object;
+//             if (coin.name === "coin" && !collectedCoins.has(coin)) {
+//                 collectedCoins.add(coin);  // Mark coin as collected
+//                 scene.remove(coin);        // Remove from scene
+//                 coinCount++;               // Increment counter
+//             }
+//         });
+//     });
+// }
 
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
@@ -382,17 +400,20 @@ function updatePlayerMovement() {
     // Update forward ray origin to follow the player's position (adjusted by height)
     let forwardRayOrigins = [
         player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), 
-        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0)),
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 1.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 1.3, 0))
     ];
 
     let canMoveForward = true;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
         forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
 
         const forwardIntersections = forwardRaycasters[i].intersectObject(level, true);
         if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
             canMoveForward = false;
+            console.log("forward", forwardIntersections);
         }
     }
 
@@ -470,11 +491,13 @@ function updatePlayerMovement() {
 
     // Update the forward ray dynamically with jumping motion
     forwardRayOrigins = [
-        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), // Left edge
-        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))  // Right edge
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0)),
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 1.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 1.3, 0))
     ];
     
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
     }
 }
