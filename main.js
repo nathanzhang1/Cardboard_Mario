@@ -1,3 +1,8 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+
 let gameStarted = false;
 
 // Hide title screen overlay when Enter is pressed
@@ -11,9 +16,7 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
 
 // Set up scene, camera, renderer
 const scene = new THREE.Scene();
@@ -32,22 +35,26 @@ scene.add(ambientLight);
 
 let level;
 let parts = {};
+const offset = 66;
 const loader = new GLTFLoader();
+
 //scene.add(cube);
 loader.load(
     'assets/marioLevel.glb', 
     function (gltf) {
         level = gltf.scene;
-        level.position.set(65.69, 0, 0);
+        level.position.set(offset, 0, 0);
         //level.scale.set(2, 2, 2);
         scene.add(level);
-        level.traverse((child) => {
-            if(child.name == 'pipeTop001')
-            {
-                console.log('pipeTop001',child);
-            }
+
+        console.log('level', level.children[0].children[0].children[0].children[1]);
+        let elements = level.children[0].children[0].children[0].children[1];
+        elements.children.forEach(function(child){
             parts[child.name] = child;
         })
+
+
+        console.log('parts', parts);
     },
     function (xhr) {
         console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}% loaded`);
@@ -57,7 +64,7 @@ loader.load(
     },
     
 );
-console.log('parts', parts);
+
 
 // //Create Player
 let player; // Declare player globally
@@ -233,6 +240,7 @@ document.addEventListener("keydown", (event) => {
     if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = true;
     if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = true;
     if (event.code === "Space") keys.jump = true;
+    
 });
 
 document.addEventListener("keyup", (event) => {
@@ -241,6 +249,7 @@ document.addEventListener("keyup", (event) => {
     if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = false;
     if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = false;
     if (event.code === "Space") keys.jump = false;
+    
 });
 
 
@@ -258,24 +267,25 @@ document.addEventListener("keyup", (event) =>{
         console.log("state", state % 3);
     
     }
-
     if(event.key == 'p'){
         if(appear){
             appear = false; 
-            stuff = parts['Object_4'];
-            console.log(stuff);
+            stuff = parts['pipes'];
+           
             scene.remove(stuff);
             console.log('part removed')
         }
         else if (!appear){
             appear = true; 
-            stuff = parts['Object_4'];
-            console.log(stuff);
-            stuff.scale.set(100, 100, 100);
-            scene.add(stuff);
+            stuff = parts['pipes'];
+            stuff.position.set(offset, 0, 0);    
+
+            sceneAdd(scene, stuff);
             console.log('part added');
         }
     }
+    if(event.key === '1') console.log('parts', parts);
+    if(event.key === '2') console.log('scene', scene);
 });
 
 
@@ -633,6 +643,7 @@ function animate() {
 
     // Update player movement
     updatePlayerMovement();
+    
 
     // Handle bouncing blocks
     bouncingBlocks.forEach((entry, index) => {
