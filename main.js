@@ -143,7 +143,7 @@ loader.load('assets/voxel_mario_amiibo.glb', function (gltf) {
     jumpModel.position.sub(center); // Move the model so its center is at (0, 0, 0)
 
     // Apply the initial position offset (adjust as needed)
-    jumpModel.position.set(0, -0.7, -0.15);
+    jumpModel.position.set(0, 0.15, -0.15);
 
     // Rotate the jumping model 90 degrees around the Y-axis
     //jumpModel.rotation.y = (-1 * Math.PI) / 2; // 90 degrees in radians
@@ -345,6 +345,15 @@ function rotateVector(vector, rotationY) {
     return vector.clone().applyQuaternion(quaternion);
 }
 
+
+let bouncingBlocks = [];
+
+function bounceBlock(block) {
+    if (bouncingBlocks.includes(block)) return; // Prevent duplicate bounces
+
+    bouncingBlocks.push({ block, startY: block.position.y, upY: block.position.y + 0.5, direction: 1 });
+}
+
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
     let moveDirection = new THREE.Vector3();
@@ -407,6 +416,10 @@ function updatePlayerMovement() {
 
         const upwardIntersections = upwardRaycasters[i].intersectObject(level, true);
         if (upwardIntersections.length > 0 && upwardIntersections[0].distance < upwardCollisionDist) {
+            let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
+            if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
+                bounceBlock(hitObject);
+            }
             hitCeiling = true;
         }
     }
@@ -469,6 +482,19 @@ function animate() {
 
     // Update player movement
     updatePlayerMovement();
+
+    // Handle bouncing blocks
+    bouncingBlocks.forEach((entry, index) => {
+        let { block, startY, upY, direction } = entry;
+        block.position.y += direction * 0.05;
+
+        if (direction === 1 && block.position.y >= upY) {
+            entry.direction = -1;
+        } else if (direction === -1 && block.position.y <= startY) {
+            block.position.y = startY; // Snap back
+            bouncingBlocks.splice(index, 1); // Remove from array
+        }
+    });
 
     // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
