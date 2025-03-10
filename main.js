@@ -25,7 +25,11 @@ camera.position.set(0, 8, 12);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
- 
+
+// Add lights to the scene
+const ambientLight = new THREE.AmbientLight(0xffffff, 1); // Soft white light
+scene.add(ambientLight);
+
 let level;
 let parts = {};
 const loader = new GLTFLoader();
@@ -475,6 +479,124 @@ function updatePlayerMovement() {
     }
 }
 
+
+
+class Goomba {
+    constructor(scene, loader, position, movementRange, speed) {
+        this.scene = scene;
+        this.loader = loader;
+        this.position = position.clone();
+        this.movementRange = movementRange;
+        this.speed = speed;
+        this.isMovingForward = true;
+        this.isMirrored = false;
+        this.mirrorInterval = null;
+        this.model = null;
+
+        this.loadModel();
+    }
+
+    loadModel() {
+        this.loader.load('assets/voxel_goomba.glb', (gltf) => {
+            this.model = gltf.scene;
+            this.model.position.copy(this.position);
+            this.model.scale.set(0.1, 0.1, 0.1);
+            this.model.rotation.y = (-1 * Math.PI) / 2; // Rotate to face the correct direction
+            this.scene.add(this.model);
+
+            // Start the walking animation
+            this.startWalking();
+        }, undefined, (error) => {
+            console.error("Error loading Goomba model:", error);
+        });
+    }
+
+    startWalking() {
+        this.mirrorInterval = setInterval(() => {
+            this.model.scale.x *= -1; // Mirror the model by flipping the X scale
+            this.isMirrored = !this.isMirrored; // Toggle the mirrored state
+
+            // Adjust the position when mirroring
+            if(this.isMovingForward) {
+                if (this.isMirrored) {
+                    this.model.position.z += 1.25; // Adjust this value as needed
+                } else {
+                    this.model.position.z -= 1.25; // Adjust this value as needed
+                }
+            }
+            else {
+                if (this.isMirrored) {
+                    this.model.position.z -= 1.25; // Adjust this value as needed
+                } else {
+                    this.model.position.z += 1.25; // Adjust this value as needed
+                }
+            }
+        }, 250); // Adjust the interval to control the speed of the walking effect
+    }
+
+    stopWalking() {
+        clearInterval(this.mirrorInterval);
+    }
+
+    update() {
+        if (!this.model) return;
+
+        // Move forward or backward based on the current state
+        if (this.isMovingForward) {
+            this.model.position.x -= this.speed; // Move forward (negative X direction)
+        } else {
+            this.model.position.x += this.speed; // Move backward (positive X direction)
+        }
+
+        // Check if the Goomba has reached the end of its movement range
+        const distanceTraveled = Math.abs(this.model.position.x - this.position.x);
+        if (distanceTraveled >= this.movementRange) {
+            // Toggle movement direction
+            this.isMovingForward = !this.isMovingForward;
+
+            // Flip the Goomba's direction
+            this.model.scale.z *= -1;
+            this.isMirrored = !this.isMirrored;
+        }
+
+        // Check for collisions with Mario
+        const distanceToMario = this.model.position.distanceTo(player.position);
+        if (distanceToMario < 1) { // Adjust collision distance as needed
+            this.handleCollision();
+        }
+    }
+
+    handleCollision() {
+        // Check if Mario is jumping on the Goomba
+        if (isJumping && player.position.y > this.model.position.y + 0.5) {
+            // Mario stomps the Goomba
+            this.scene.remove(this.model);
+            this.stopWalking();
+        } else {
+            // Mario loses a life or takes damage
+            console.log("Mario hit by Goomba!");
+            // Implement logic for Mario losing a life or taking damage
+        }
+    }
+
+}
+
+// Array to store all Goomba instances
+const goombas = [];
+
+// Create multiple Goombas with different positions and movement ranges
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(17.5, 2.10, 3.32), 10, 0.05)); // Goomba 1
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(43.75, 2.10, 3.32), 2, 0.05)); // Goomba 2
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(53.5, 2.10, 3.32), 3.5, 0.05)); // Goomba 3
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(82.5, 2.10, 1.32), 5, 0.05)); // Goomba 4
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(82.5, 2.10, 5.32), 5, 0.05)); // Goomba 5
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(105, 2.10, 3.32), 10, 0.05)); // Goomba 6
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(125, 2.10, 1.32), 10, 0.05)); // Goomba 7
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(125, 2.10, 5.32), 10, 0.05)); // Goomba 8
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 1.32), 10, 0.05)); // Goomba 9
+goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 5.32), 10, 0.05)); // Goomba 10
+
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -495,6 +617,8 @@ function animate() {
             bouncingBlocks.splice(index, 1); // Remove from array
         }
     });
+    // Update all Goombas
+    goombas.forEach(goomba => goomba.update());
 
     // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
