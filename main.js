@@ -103,7 +103,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(5, 2.5, 3.82);
+    pivot.position.set(152, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -306,12 +306,12 @@ let isOnGround = false;
 
 
 // Create a raycaster once (outside the function) so we don't create a new one every frame.
-const forwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster()];
+const forwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const upwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const downwardRaycasters = [new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster(), new THREE.Raycaster()];
 const forwardCollisionDist = 0.5;
 const upwardCollisionDist = 0.1;
-const downwardCollisionDist = 0.5;
+const downwardCollisionDist = 0.55;
 
 let showRays = false;
 let forwardArrows = [], upwardArrows = [], downwardArrows = [];
@@ -359,13 +359,31 @@ function rotateVector(vector, rotationY) {
     return vector.clone().applyQuaternion(quaternion);
 }
 
-
+// For making blocks bounce when hit by Mario's head
 let bouncingBlocks = [];
 
 function bounceBlock(block) {
     if (bouncingBlocks.includes(block)) return; // Prevent duplicate bounces
 
     bouncingBlocks.push({ block, startY: block.position.y, upY: block.position.y + 0.5, direction: 1 });
+}
+
+let coinCount = 0;
+let collectedCoins = new Set();
+
+function checkCoinCollection() {
+    if (player.position.y < 0) {
+        parts.coins.children.forEach(coin => {
+            const boundingBox = new THREE.Box3().setFromObject(coin);
+            if (boundingBox.intersectsSphere(new THREE.Sphere(player.position, 1))) {
+                if (!collectedCoins.has(coin)) {
+                    collectedCoins.add(coin);
+                    coin.parent.remove(coin);
+                    coinCount++;
+                }
+            }
+        });
+    }
 }
 
 function updatePlayerMovement() {
@@ -392,16 +410,21 @@ function updatePlayerMovement() {
     // Update forward ray origin to follow the player's position (adjusted by height)
     let forwardRayOrigins = [
         player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), 
-        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0)),
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 1.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 1.3, 0))
     ];
 
     let canMoveForward = true;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
         forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
 
         const forwardIntersections = forwardRaycasters[i].intersectObject(level, true);
         if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
+            if (forwardIntersections[0].object.parent.name === "coins") {
+                continue;
+            }
             canMoveForward = false;
         }
     }
@@ -430,6 +453,9 @@ function updatePlayerMovement() {
 
         const upwardIntersections = upwardRaycasters[i].intersectObject(level, true);
         if (upwardIntersections.length > 0 && upwardIntersections[0].distance < upwardCollisionDist) {
+            if (upwardIntersections[0].object.parent.name === "coins") {
+                continue;
+            }
             let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
             if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
                 bounceBlock(hitObject);
@@ -460,6 +486,9 @@ function updatePlayerMovement() {
 
         const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
         if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
+            if (downwardIntersections[0].object.parent.name === "coins") {
+                continue;
+            }
             onGround = true;
             player.position.y = downwardIntersections[0].point.y + 0.1;
             velocity.y = 0;
@@ -480,12 +509,20 @@ function updatePlayerMovement() {
 
     // Update the forward ray dynamically with jumping motion
     forwardRayOrigins = [
-        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), // Left edge
-        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0))  // Right edge
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 0.3, 0)),
+        player.position.clone().add(right.clone().multiplyScalar(-0.25)).add(new THREE.Vector3(0, 1.3, 0)), 
+        player.position.clone().add(right.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, 1.3, 0))
     ];
     
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
+    }
+
+    if (player.position.y <= -30) {  // If Mario falls below y = -30
+        // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
+        player.position.copy(new THREE.Vector3(5, 5, 3.82)); 
+        console.log("Mario fell to his death! Resetting position.");
     }
 }
 
@@ -614,7 +651,9 @@ function animate() {
 
     // Update player movement
     updatePlayerMovement();
-    
+
+    // Check for underground coin collection
+    checkCoinCollection();
 
     // Handle bouncing blocks
     bouncingBlocks.forEach((entry, index) => {
