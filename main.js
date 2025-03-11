@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 
 
 let gameStarted = false;
@@ -75,6 +77,7 @@ let jumpModel; // To store the jumping model
 let isWalking = false; // To check if Mario is walking
 let isJumping = false; // To check if Mario is jumping
 let mirrorInterval; // To handle the mirroring effect
+let hasPowerUp = false; // To handle if Mario has a mushroom
 
 let marioSize;
 let marioCenter;
@@ -644,6 +647,78 @@ goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 1.32), 10, 0
 goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 5.32), 10, 0.05)); // Goomba 10
 
 
+const mtlLoader = new MTLLoader();
+const objLoader = new OBJLoader();
+
+class SuperMushroom {
+    constructor(scene, mtlLoader, objLoader, position) {
+        this.scene = scene;
+        this.mtlLoader = mtlLoader;
+        this.objLoader = objLoader;
+        this.position = position.clone();
+        this.model = null;
+        this.isCollected = false;
+
+        this.loadModel();
+    }
+
+    loadModel() {
+        // Load the MTL file first
+        this.mtlLoader.load('assets/Custom Edited - Mario Customs - Super Mushroom Super Mario Bros Voxel/obj_item_supermushroom.mtl', (materials) => {
+            materials.preload();
+
+            // Set the materials for the OBJLoader
+            this.objLoader.setMaterials(materials);
+
+            // Load the OBJ file
+            this.objLoader.load('assets/Custom Edited - Mario Customs - Super Mushroom Super Mario Bros Voxel/obj_item_supermushroom.obj', (object) => {
+                this.model = object;
+                this.model.position.copy(this.position);
+                this.model.scale.set(0.8, 0.8, 0.8); // Adjust scale as needed
+                this.scene.add(this.model);
+            }, undefined, (error) => {
+                console.error("Error loading Super Mushroom OBJ model:", error);
+            });
+        }, undefined, (error) => {
+            console.error("Error loading Super Mushroom MTL materials:", error);
+        });
+    }
+
+    update() {
+        if (!this.model || this.isCollected) return;
+
+        // Check for collision with Mario
+        const distanceToMario = this.model.position.distanceTo(player.position);
+        if (distanceToMario < 1) { // Adjust collision distance as needed
+            this.handleCollision();
+        }
+    }
+
+    handleCollision() {
+        if (!this.isCollected) {
+            this.isCollected = true;
+            this.scene.remove(this.model); // Remove the mushroom from the scene
+            this.applyPowerUp();
+        }
+    }
+
+    applyPowerUp() {
+        if (!hasPowerUp) {
+            hasPowerUp = true;
+            player.scale.set(1.2, 1.5, 1.2); // Increase Mario's size
+            console.log("Mario grew bigger!");
+        }
+    }
+}
+
+const mushrooms = [];
+
+// Create multiple mushrooms with different positions
+mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, new THREE.Vector3(21.5, 6.75, 4))); // Mushroom 1
+mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, new THREE.Vector3(82.69, 6.75, 4))); // Mushroom 2
+mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, new THREE.Vector3(114.71, 10.75, 4))); // Mushroom 3
+
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -669,6 +744,9 @@ function animate() {
     });
     // Update all Goombas
     goombas.forEach(goomba => goomba.update());
+
+    // Update all Mushrooms
+    mushrooms.forEach(mushroom => mushroom.update());
 
     // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
