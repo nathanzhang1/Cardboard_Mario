@@ -369,23 +369,27 @@ function bounceBlock(block) {
 }
 
 let coinCount = 0;
-let collectedCoins = new Set(); // Track collected coins
+let collectedCoins = new Set();
+
+function checkCoinCollection() {
+    if (player.position.y < 0) {
+        parts.coins.children.forEach(coin => {
+            const boundingBox = new THREE.Box3().setFromObject(coin);
+            if (boundingBox.intersectsSphere(new THREE.Sphere(player.position, 1))) {
+                if (!collectedCoins.has(coin)) {
+                    collectedCoins.add(coin);
+                    coin.parent.remove(coin);
+                    coinCount++;
+                }
+            }
+        });
+    }
+}
 
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
     let moveDirection = new THREE.Vector3();
     let right = new THREE.Vector3();
-
-    // parts.coins.children.forEach(coin => {
-    //     const boundingBox = new THREE.Box3().setFromObject(coin);
-    //     if (boundingBox.intersectsSphere(new THREE.Sphere(player.position, 1))) {
-    //         if (!collectedCoins.has(coin)) {
-    //             collectedCoins.add(coin);
-    //             coin.parent.remove(coin);
-    //             coinCount++;
-    //         }
-    //     }
-    // });
 
     if (keys.forward || keys.backward || keys.left || keys.right) {
         // Get camera's forward direction
@@ -417,21 +421,11 @@ function updatePlayerMovement() {
         forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
 
         const forwardIntersections = forwardRaycasters[i].intersectObject(level, true);
-        if (forwardIntersections.length > 0 && forwardIntersections[0].distance < 1.2) {
+        if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
             if (forwardIntersections[0].object.parent.name === "coins") {
-                let collectedCoin = forwardIntersections[0].object;
-
-                if (collectedCoins.has(collectedCoin)) {
-                    continue;
-                }
-
-                collectedCoins.add(collectedCoin);
-                collectedCoin.parent.remove(collectedCoin);
-                coinCount++;
+                continue;
             }
-            else if (forwardIntersections[0].distance < forwardCollisionDist) {
-                canMoveForward = false;
-            }
+            canMoveForward = false;
         }
     }
 
@@ -458,25 +452,15 @@ function updatePlayerMovement() {
         upwardArrows[i] = visualizeRay(headCorners[i], new THREE.Vector3(0, 1, 0), upwardArrows[i]);
 
         const upwardIntersections = upwardRaycasters[i].intersectObject(level, true);
-        if (upwardIntersections.length > 0 && upwardIntersections[0].distance < 1.2) {
+        if (upwardIntersections.length > 0 && upwardIntersections[0].distance < upwardCollisionDist) {
             if (upwardIntersections[0].object.parent.name === "coins") {
-                let collectedCoin = upwardIntersections[0].object;
-
-                if (collectedCoins.has(collectedCoin)) {
-                    continue;
-                }
-
-                collectedCoins.add(collectedCoin);
-                collectedCoin.parent.remove(collectedCoin);
-                coinCount++;
+                continue;
             }
-            else if (upwardIntersections[0].distance < upwardCollisionDist) {
-                let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
-                if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
-                    bounceBlock(hitObject);
-                }
-                hitCeiling = true;
+            let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
+            if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
+                bounceBlock(hitObject);
             }
+            hitCeiling = true;
         }
     }
 
@@ -501,23 +485,13 @@ function updatePlayerMovement() {
         downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
 
         const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
-        if (downwardIntersections.length > 0 && downwardIntersections[0].distance < 1.2) {
+        if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
             if (downwardIntersections[0].object.parent.name === "coins") {
-                let collectedCoin = downwardIntersections[0].object;
-
-                if (collectedCoins.has(collectedCoin)) {
-                    continue;
-                }
-
-                collectedCoins.add(collectedCoin);
-                collectedCoin.parent.remove(collectedCoin);
-                coinCount++;
+                continue;
             }
-            else if (downwardIntersections[0].distance < downwardCollisionDist) {
-                onGround = true;
-                player.position.y = downwardIntersections[0].point.y + 0.1;
-                velocity.y = 0;
-            }
+            onGround = true;
+            player.position.y = downwardIntersections[0].point.y + 0.1;
+            velocity.y = 0;
         }
     }
 
@@ -550,8 +524,6 @@ function updatePlayerMovement() {
         player.position.copy(new THREE.Vector3(5, 5, 3.82)); 
         console.log("Mario fell to his death! Resetting position.");
     }
-
-    console.log(coinCount);
 }
 
 
@@ -679,7 +651,9 @@ function animate() {
 
     // Update player movement
     updatePlayerMovement();
-    
+
+    // Check for underground coin collection
+    checkCoinCollection();
 
     // Handle bouncing blocks
     bouncingBlocks.forEach((entry, index) => {
