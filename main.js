@@ -436,7 +436,7 @@ function updatePlayerMovement() {
     }
 
     // Apply gravity
-    velocity.y -= gravity;
+    velocity.y = Math.max(velocity - gravity, -0.5);
 
     // **ROTATE HEAD AND FOOT CORNERS ACCORDING TO MARIO'S ROTATION**
     const headCorners = [
@@ -457,7 +457,7 @@ function updatePlayerMovement() {
                 continue;
             }
             let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
-            if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
+            if (hitObject && (hitObject.parent.name === "questionBlocks" || hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks" || hitObject.parent.parent.name === "bricks")) {
                 bounceBlock(hitObject);
             }
             hitCeiling = true;
@@ -521,7 +521,8 @@ function updatePlayerMovement() {
 
     if (player.position.y <= -30) {  // If Mario falls below y = -30
         // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
-        player.position.copy(new THREE.Vector3(5, 5, 3.82)); 
+        velocity.y = 0;
+        player.position.copy(new THREE.Vector3(5, 2.5, 3.82)); 
         console.log("Mario fell to his death! Resetting position.");
     }
 }
