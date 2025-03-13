@@ -35,10 +35,58 @@ document.body.appendChild(renderer.domElement);
 const ambientLight = new THREE.AmbientLight(0xffffff, 1); // Soft white light
 scene.add(ambientLight);
 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High-quality soft shadows
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+sunLight.position.set(100, 300, 100); // High up to simulate the sun
+sunLight.castShadow = true;
+
+// Create the Sun Cube
+const sunGeometry = new THREE.BoxGeometry(20, 20, 20); // Small cube
+const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const sunCube = new THREE.Mesh(sunGeometry, sunMaterial);
+
+// Position the sun cube at the same position as the light
+sunCube.position.copy(sunLight.position);
+scene.add(sunCube);
+
+sunLight.shadow.mapSize.width = 2048;  // Increase resolution
+sunLight.shadow.mapSize.height = 2048;
+
+sunLight.shadow.camera.near = 0.5;     // Adjust near plane
+sunLight.shadow.camera.far = 1000;      // Increase far plane
+
+sunLight.shadow.camera.left = -300;    // Expand shadow coverage
+sunLight.shadow.camera.right = 300;
+sunLight.shadow.camera.top = 300;
+sunLight.shadow.camera.bottom = -300;
+
+// Add light to the scene
+scene.add(sunLight);
+
 let level;
 let parts = {};
 const offset = 66;
 const loader = new GLTFLoader();
+
+function convertMaterialsAndEnableShadows(object) {
+    object.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+
+            if (child.material instanceof THREE.MeshBasicMaterial) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: child.material.color,
+                    map: child.material.map,
+                    roughness: 0.6,
+                    metalness: 0,
+                });
+            }
+        }
+    });
+}
 
 //scene.add(cube);
 loader.load(
@@ -52,6 +100,7 @@ loader.load(
         console.log('level', level.children[0].children[0].children[0].children[1]);
         let elements = level.children[0].children[0].children[0].children[1];
         elements.children.forEach(function(child){
+            convertMaterialsAndEnableShadows(child);
             parts[child.name] = child;
         })
 
@@ -115,6 +164,9 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     // Update your player reference to the pivot group
     player = pivot;
     currentModel = idleModel; // Set the current model to idle
+
+    convertMaterialsAndEnableShadows(idleModel);
+
 }, undefined, function (error) {
     console.error("Error loading Mario model:", error);
 });
@@ -137,11 +189,8 @@ loader.load('assets/mario_walk.glb', function (gltf) {
     // Rotate the walking model 90 degrees around the Y-axis
     walkModel.rotation.y = (-1 * Math.PI) / 2; // 90 degrees in radians
 
-    walkModel.traverse((child) => {
-        if(child.isMesh) {
-            child.material = new THREE.MeshBasicMaterial({ map: child.material.map });
-        }
-    });
+    convertMaterialsAndEnableShadows(walkModel);
+
     walkModel.visible = false; // Initially hide the walking model
 
     // Add the walking model to the player group (pivot)
@@ -169,11 +218,8 @@ loader.load('assets/voxel_mario_amiibo.glb', function (gltf) {
     // Rescale the jumping model (adjust the values as needed)
     jumpModel.scale.set(0.1, 0.1, 0.1); // Scale down to 50% of the original size
 
-    jumpModel.traverse((child) => {
-        if(child.isMesh) {
-            child.material = new THREE.MeshBasicMaterial({ map: child.material.map });
-        }
-    });
+    convertMaterialsAndEnableShadows(jumpModel);
+
     jumpModel.visible = false; // Initially hide the jumping model
 
     // Add the jumping model to the player group (pivot)
@@ -308,7 +354,8 @@ controls.maxDistance = 10; // Max zoom
 let velocity = { x: 0, y: 0, z: 0 };  
 const speed = 0.15;  // Movement speed  
 const gravity = 0.02;  // Gravity force  
-const jumpStrength = 0.5;  
+const jumpStrength = 0.5;
+const terminalVelocity = -0.8;
 let isOnGround = false;  
 
 
@@ -445,6 +492,8 @@ function updatePlayerMovement() {
     ];
 
     let canMoveForward = true;
+    let shouldClimb = false;
+
     for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
         forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
@@ -466,7 +515,15 @@ function updatePlayerMovement() {
             } else if (hitObject.parent.name === "coins") {
                 continue; // Ignore coins
             } else {
-                canMoveForward = false;
+    
+            // Check if only the bottom rays (0 and 1) detect a collision while the top ones (2 and 3) do not
+            if (i < 2) {
+                shouldClimb = true;
+            } else {
+                shouldClimb = false;
+            }
+
+            canMoveForward = false;
             }
         }
     }
@@ -478,7 +535,14 @@ function updatePlayerMovement() {
     }
 
     // Apply gravity
-    velocity.y -= gravity;
+    if (!isOnGround) {
+        velocity.y -= gravity;
+    }
+
+    // Apply terminal velocity cap
+    if (velocity.y < terminalVelocity) {
+        velocity.y = terminalVelocity;
+    }
 
     // **ROTATE HEAD AND FOOT CORNERS ACCORDING TO MARIO'S ROTATION**
     const headCorners = [
@@ -499,7 +563,7 @@ function updatePlayerMovement() {
                 continue;
             }
             let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
-            if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
+            if (hitObject && (hitObject.parent.name === "questionBlocks" || hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks" || hitObject.parent.parent.name === "bricks")) {
                 bounceBlock(hitObject);
                 if (hitObject && hitObject.name === "questionBlock002" ) {
                     if(!questionBlock002_spawn) {
@@ -598,6 +662,12 @@ function updatePlayerMovement() {
 
     isOnGround = onGround;
 
+    // Auto stair climbing logic
+    if (shouldClimb) {
+        player.position.y += 1;  // Move Mario up one unit
+        canMoveForward = true;   // Allow movement again since he climbed the step
+    }
+
     // Move player **ONLY IF NO FORWARD COLLISION**, but still allow gravity!
     if (canMoveForward) {
         player.position.add(moveDirection);
@@ -622,7 +692,8 @@ function updatePlayerMovement() {
 
     if (player.position.y <= -30) {  // If Mario falls below y = -30
         // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
-        player.position.copy(new THREE.Vector3(5, 5, 3.82)); 
+        velocity.y = 0;
+        player.position.copy(new THREE.Vector3(5, 2.5, 3.82)); 
         console.log("Mario fell to his death! Resetting position.");
     }
 }
@@ -660,6 +731,14 @@ class Goomba {
             this.boxHelper = new THREE.BoxHelper(this.model, 0x00ff00); // Green wireframe box
             this.scene.add(this.boxHelper);
             this.boxHelper.visible = false;
+
+            // Enable shadows for the Goomba and all its meshes
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
 
             // Start the walking animation
             this.startWalking();
