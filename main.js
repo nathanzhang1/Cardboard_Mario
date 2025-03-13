@@ -463,6 +463,8 @@ function updatePlayerMovement() {
     ];
 
     let canMoveForward = true;
+    let shouldClimb = false;
+
     for (let i = 0; i < 4; i++) {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
         forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
@@ -472,6 +474,14 @@ function updatePlayerMovement() {
             if (forwardIntersections[0].object.parent.name === "coins") {
                 continue;
             }
+
+            // Check if only the bottom rays (0 and 1) detect a collision while the top ones (2 and 3) do not
+            if (i < 2) {
+                shouldClimb = true;
+            } else {
+                shouldClimb = false;
+            }
+
             canMoveForward = false;
         }
     }
@@ -550,6 +560,12 @@ function updatePlayerMovement() {
     }
 
     isOnGround = onGround;
+
+    // Auto stair climbing logic
+    if (shouldClimb) {
+        player.position.y += 1;  // Move Mario up one unit
+        canMoveForward = true;   // Allow movement again since he climbed the step
+    }
 
     // Move player **ONLY IF NO FORWARD COLLISION**, but still allow gravity!
     if (canMoveForward) {
