@@ -158,20 +158,8 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     player = pivot;
     currentModel = idleModel; // Set the current model to idle
 
-    idleModel.traverse((child) => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            if (child.material instanceof THREE.MeshBasicMaterial) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: child.material.color,
-                    map: child.material.map,
-                    roughness: 0.6,
-                    metalness: 0,
-                });
-            }
-        }
-    });
+    convertMaterialsAndEnableShadows(idleModel);
+
 }, undefined, function (error) {
     console.error("Error loading Mario model:", error);
 });
@@ -194,20 +182,8 @@ loader.load('assets/mario_walk.glb', function (gltf) {
     // Rotate the walking model 90 degrees around the Y-axis
     walkModel.rotation.y = (-1 * Math.PI) / 2; // 90 degrees in radians
 
-    walkModel.traverse((child) => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            if (child.material instanceof THREE.MeshBasicMaterial) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: child.material.color,
-                    map: child.material.map,
-                    roughness: 0.6,
-                    metalness: 0,
-                });
-            }
-        }
-    });
+    convertMaterialsAndEnableShadows(walkModel);
+
     walkModel.visible = false; // Initially hide the walking model
 
     // Add the walking model to the player group (pivot)
@@ -235,20 +211,8 @@ loader.load('assets/voxel_mario_amiibo.glb', function (gltf) {
     // Rescale the jumping model (adjust the values as needed)
     jumpModel.scale.set(0.1, 0.1, 0.1); // Scale down to 50% of the original size
 
-    jumpModel.traverse((child) => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            if (child.material instanceof THREE.MeshBasicMaterial) {
-                child.material = new THREE.MeshStandardMaterial({
-                    color: child.material.color,
-                    map: child.material.map,
-                    roughness: 0.6,
-                    metalness: 0,
-                });
-            }
-        }
-    });
+    convertMaterialsAndEnableShadows(jumpModel);
+
     jumpModel.visible = false; // Initially hide the jumping model
 
     // Add the jumping model to the player group (pivot)
