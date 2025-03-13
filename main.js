@@ -159,7 +159,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(5, 2.5, 3.82);
+    pivot.position.set(152, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -441,6 +441,7 @@ function checkCoinCollection() {
                     collectedCoins.add(coin);
                     coin.parent.remove(coin);
                     coinCount++;
+                    console.log(coinCount);
                 }
             }
         });
@@ -461,6 +462,15 @@ function findRootGoombaModel(object) {
 let questionBlock002_spawn = false;
 let questionBlock005_spawn = false;
 let questionBlock0010_spawn = false;
+
+let brickCoinSpawns = {
+    brick001: false,
+    brick003: false,
+    brick005: false,
+    brick017: false,
+    brick027: false,
+    brick028: false,
+}
 
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
@@ -559,6 +569,7 @@ function updatePlayerMovement() {
 
         const upwardIntersections = upwardRaycasters[i].intersectObject(level, true);
         if (upwardIntersections.length > 0 && upwardIntersections[0].distance < upwardCollisionDist) {
+            console.log("Upward", upwardIntersections);
             if (upwardIntersections[0].object.parent.name === "coins") {
                 continue;
             }
@@ -582,6 +593,16 @@ function updatePlayerMovement() {
                         spawnMushroom(hitObject.name);
                         questionBlock0010_spawn = true;
                     }
+                }
+
+                if (hitObject && hitObject.parent.name === "coinBrick") {
+                    if (!brickCoinSpawns[hitObject.name]) {
+                        spawnBrickCoin(hitObject.name);
+                        brickCoinSpawns[hitObject.name] = true;
+                    }
+                    console.log("x", player.position.x);
+                    console.log("y", player.position.y);
+                    console.log("z", player.position.z);
                 }
             }
             hitCeiling = true;
@@ -612,6 +633,38 @@ function updatePlayerMovement() {
         const mushroom = mushrooms.find(m => m.position.equals(mushroomPosition));
         if (!mushroom || mushroom.isCollected) {
             mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, mushroomPosition));
+        }
+    }
+
+    function spawnBrickCoin(blockName) {
+        let brickCoinPosition;
+        switch(blockName) {
+            case "brick001":
+                brickCoinPosition = new THREE.Vector3(20.5, 2.3, 3.5);
+                break;
+            case "brick003":
+                brickCoinPosition = new THREE.Vector3(24.5, 2.3, 3.5);
+                break;
+            case "brick005":
+                brickCoinPosition = new THREE.Vector3(83.6, 2.3, 3.5);
+                break;
+            case "brick017":
+                brickCoinPosition = new THREE.Vector3(99.2, 2.3, 3.5);
+                break;
+            case "brick027":
+                brickCoinPosition = new THREE.Vector3(136.2, 2.3, 3.5);
+                break;
+            case "brick028":
+                brickCoinPosition = new THREE.Vector3(175.5, 2.3, 3.5);
+                break;
+            default:
+                return;
+        }
+
+        // Check if the mushroom has already been spawned
+        const brickCoin = brickCoins.find(coin => coin.position.equals(brickCoinPosition));
+        if (!brickCoin || brickCoin.isCollected) {
+            brickCoins.push(new BrickCoin(scene, loader, brickCoinPosition));
         }
     }
 
@@ -662,8 +715,8 @@ function updatePlayerMovement() {
 
     isOnGround = onGround;
 
-    // Auto stair climbing logic
-    if (shouldClimb) {
+    // Auto stair climbing logic, also if player falling don't auto climb
+    if (shouldClimb & velocity.y >= 0) {
         player.position.y += 1;  // Move Mario up one unit
         canMoveForward = true;   // Allow movement again since he climbed the step
     }
@@ -923,6 +976,59 @@ class SuperMushroom {
     }
 }
 
+const brickCoins = [];
+
+class BrickCoin {
+    constructor(scene, loader, position) {
+        this.scene = scene;
+        this.loader = loader;
+        this.position = position.clone();
+        this.model = null;
+        this.isCollected = false;
+
+        this.loadModel();
+    }
+
+    loadModel() {
+        this.loader.load('assets/voxel_coin.glb', (gltf) => {
+            this.model = gltf.scene;
+            this.model.position.copy(this.position);
+            this.model.scale.set(0.06, 0.06, 0.06);
+            // this.model.rotation.y = (-1 * Math.PI) / 2; // Rotate to face the correct direction
+            this.model.name = "BrickCoin";
+            this.scene.add(this.model);
+
+            // Enable shadows for the Goomba and all its meshes
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+        }, undefined, (error) => {
+            console.error("Error loading Goomba model:", error);
+        });
+    }
+
+    update() {
+        if (!this.model || this.isCollected) return;
+
+        const boundingBox = new THREE.Box3().setFromObject(this.model);
+        if (boundingBox.intersectsSphere(new THREE.Sphere(player.position, 1))) {
+            this.handleCollision();
+        }
+    }
+
+    handleCollision() {
+        if (!this.isCollected) {
+            this.isCollected = true;
+            this.scene.remove(this.model); // Remove the coin from the scene
+            coinCount++;
+            console.log(coinCount);
+        }
+    }
+}
+
 
 
 function animate() {
@@ -953,6 +1059,9 @@ function animate() {
 
     // Update all Mushrooms
     mushrooms.forEach(mushroom => mushroom.update());
+
+    // Update all BrickCoins
+    brickCoins.forEach(coin => coin.update());
 
     // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
