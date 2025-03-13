@@ -33,10 +33,58 @@ document.body.appendChild(renderer.domElement);
 const ambientLight = new THREE.AmbientLight(0xffffff, 1); // Soft white light
 scene.add(ambientLight);
 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High-quality soft shadows
+
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+sunLight.position.set(100, 300, 100); // High up to simulate the sun
+sunLight.castShadow = true;
+
+// Create the Sun Cube
+const sunGeometry = new THREE.BoxGeometry(20, 20, 20); // Small cube
+const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const sunCube = new THREE.Mesh(sunGeometry, sunMaterial);
+
+// Position the sun cube at the same position as the light
+sunCube.position.copy(sunLight.position);
+scene.add(sunCube);
+
+sunLight.shadow.mapSize.width = 2048;  // Increase resolution
+sunLight.shadow.mapSize.height = 2048;
+
+sunLight.shadow.camera.near = 0.5;     // Adjust near plane
+sunLight.shadow.camera.far = 1000;      // Increase far plane
+
+sunLight.shadow.camera.left = -300;    // Expand shadow coverage
+sunLight.shadow.camera.right = 300;
+sunLight.shadow.camera.top = 300;
+sunLight.shadow.camera.bottom = -300;
+
+// Add light to the scene
+scene.add(sunLight);
+
 let level;
 let parts = {};
 const offset = 66;
 const loader = new GLTFLoader();
+
+function convertMaterialsAndEnableShadows(object) {
+    object.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+
+            if (child.material instanceof THREE.MeshBasicMaterial) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: child.material.color,
+                    map: child.material.map,
+                    roughness: 0.6,
+                    metalness: 0,
+                });
+            }
+        }
+    });
+}
 
 //scene.add(cube);
 loader.load(
@@ -50,6 +98,7 @@ loader.load(
         console.log('level', level.children[0].children[0].children[0].children[1]);
         let elements = level.children[0].children[0].children[0].children[1];
         elements.children.forEach(function(child){
+            convertMaterialsAndEnableShadows(child);
             parts[child.name] = child;
         })
 
@@ -108,6 +157,21 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     // Update your player reference to the pivot group
     player = pivot;
     currentModel = idleModel; // Set the current model to idle
+
+    idleModel.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material instanceof THREE.MeshBasicMaterial) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: child.material.color,
+                    map: child.material.map,
+                    roughness: 0.6,
+                    metalness: 0,
+                });
+            }
+        }
+    });
 }, undefined, function (error) {
     console.error("Error loading Mario model:", error);
 });
@@ -131,8 +195,17 @@ loader.load('assets/mario_walk.glb', function (gltf) {
     walkModel.rotation.y = (-1 * Math.PI) / 2; // 90 degrees in radians
 
     walkModel.traverse((child) => {
-        if(child.isMesh) {
-            child.material = new THREE.MeshBasicMaterial({ map: child.material.map });
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material instanceof THREE.MeshBasicMaterial) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: child.material.color,
+                    map: child.material.map,
+                    roughness: 0.6,
+                    metalness: 0,
+                });
+            }
         }
     });
     walkModel.visible = false; // Initially hide the walking model
@@ -163,8 +236,17 @@ loader.load('assets/voxel_mario_amiibo.glb', function (gltf) {
     jumpModel.scale.set(0.1, 0.1, 0.1); // Scale down to 50% of the original size
 
     jumpModel.traverse((child) => {
-        if(child.isMesh) {
-            child.material = new THREE.MeshBasicMaterial({ map: child.material.map });
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material instanceof THREE.MeshBasicMaterial) {
+                child.material = new THREE.MeshStandardMaterial({
+                    color: child.material.color,
+                    map: child.material.map,
+                    roughness: 0.6,
+                    metalness: 0,
+                });
+            }
         }
     });
     jumpModel.visible = false; // Initially hide the jumping model
@@ -301,7 +383,8 @@ controls.maxDistance = 10; // Max zoom
 let velocity = { x: 0, y: 0, z: 0 };  
 const speed = 0.15;  // Movement speed  
 const gravity = 0.02;  // Gravity force  
-const jumpStrength = 0.5;  
+const jumpStrength = 0.5;
+const terminalVelocity = -0.8;
 let isOnGround = false;  
 
 
@@ -436,7 +519,14 @@ function updatePlayerMovement() {
     }
 
     // Apply gravity
-    velocity.y = Math.max(velocity - gravity, -0.5);
+    if (!isOnGround) {
+        velocity.y -= gravity;
+    }
+
+    // Apply terminal velocity cap
+    if (velocity.y < terminalVelocity) {
+        velocity.y = terminalVelocity;
+    }
 
     // **ROTATE HEAD AND FOOT CORNERS ACCORDING TO MARIO'S ROTATION**
     const headCorners = [
@@ -551,6 +641,14 @@ class Goomba {
             this.model.scale.set(0.1, 0.1, 0.1);
             this.model.rotation.y = (-1 * Math.PI) / 2; // Rotate to face the correct direction
             this.scene.add(this.model);
+
+            // Enable shadows for the Goomba and all its meshes
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
 
             // Start the walking animation
             this.startWalking();
