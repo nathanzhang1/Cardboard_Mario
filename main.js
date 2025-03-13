@@ -77,7 +77,11 @@ let jumpModel; // To store the jumping model
 let isWalking = false; // To check if Mario is walking
 let isJumping = false; // To check if Mario is jumping
 let mirrorInterval; // To handle the mirroring effect
+
 let hasPowerUp = false; // To handle if Mario has a mushroom
+let isInvincible = false; // Tracks if Mario is currently invincible
+let invincibilityTimer = 0; // Tracks how long Mario has been invincible
+const invincibilityDuration = 1000; // 1 second of invincibility
 
 let marioSize;
 let marioCenter;
@@ -106,7 +110,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(152, 2.5, 3.82);
+    pivot.position.set(5, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -338,6 +342,13 @@ function updateRayVisibility() {
     downwardArrows.forEach(arrow => {
         if (arrow) arrow.visible = showRays;
     });
+
+    // Toggle Goomba bounding box visibility
+    goombas.forEach(goomba => {
+        if (goomba.boxHelper) {
+            goomba.boxHelper.visible = showRays;
+        }
+    });
 }
 
 function visualizeRay(origin, direction, existingArrow) {
@@ -389,6 +400,21 @@ function checkCoinCollection() {
     }
 }
 
+function findRootGoombaModel(object) {
+    // Traverse up the parent hierarchy to find the root Goomba model
+    while (object.parent) {
+        if (object.parent.name === "Goomba") {
+            return object.parent;
+        }
+        object = object.parent;
+    }
+    return null; // Return null if no Goomba model is found
+}
+
+let questionBlock002_spawn = false;
+let questionBlock005_spawn = false;
+let questionBlock0010_spawn = false;
+
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
     let moveDirection = new THREE.Vector3();
@@ -423,12 +449,25 @@ function updatePlayerMovement() {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
         forwardArrows[i] = visualizeRay(forwardRayOrigins[i], moveDirection, forwardArrows[i]);
 
-        const forwardIntersections = forwardRaycasters[i].intersectObject(level, true);
+        const forwardIntersections = forwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
         if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
-            if (forwardIntersections[0].object.parent.name === "coins") {
-                continue;
+            const hitObject = forwardIntersections[0].object;
+
+            // Find the root Goomba model
+            const rootGoombaModel = findRootGoombaModel(hitObject);
+
+            // Check if the hit object is part of a Goomba
+            if (rootGoombaModel) {
+                console.log("Mario hit a Goomba from the side!");
+                const goomba = goombas.find(g => g.model === rootGoombaModel);
+                if (goomba) {
+                    goomba.handleMarioDamage();
+                }
+            } else if (hitObject.parent.name === "coins") {
+                continue; // Ignore coins
+            } else {
+                canMoveForward = false;
             }
-            canMoveForward = false;
         }
     }
 
@@ -462,6 +501,24 @@ function updatePlayerMovement() {
             let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
             if (hitObject && (hitObject.parent.name === "questionBlocks" ||hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks")) {
                 bounceBlock(hitObject);
+                if (hitObject && hitObject.name === "questionBlock002" ) {
+                    if(!questionBlock002_spawn) {
+                        spawnMushroom(hitObject.name);
+                        questionBlock002_spawn = true;
+                    }
+                }
+                if (hitObject && hitObject.name === "questionBlock005" ) {
+                    if(!questionBlock005_spawn) {
+                        spawnMushroom(hitObject.name);
+                        questionBlock005_spawn = true;
+                    }
+                }
+                if (hitObject && hitObject.name === "questionBlock010") {
+                    if(!questionBlock0010_spawn) {
+                        spawnMushroom(hitObject.name);
+                        questionBlock0010_spawn = true;
+                    }
+                }
             }
             hitCeiling = true;
         }
@@ -469,6 +526,29 @@ function updatePlayerMovement() {
 
     if (hitCeiling) {
         velocity.y = Math.min(velocity.y, 0);
+    }
+
+    function spawnMushroom(blockName) {
+        let mushroomPosition;
+        switch (blockName) {
+            case "questionBlock002":
+                mushroomPosition = new THREE.Vector3(21.83, 6.75, 4);
+                break;
+            case "questionBlock005":
+                mushroomPosition = new THREE.Vector3(83, 6.75, 4);
+                break;
+            case "questionBlock010":
+                mushroomPosition = new THREE.Vector3(115, 10.75, 4);
+                break;
+            default:
+                return;
+        }
+    
+        // Check if the mushroom has already been spawned
+        const mushroom = mushrooms.find(m => m.position.equals(mushroomPosition));
+        if (!mushroom || mushroom.isCollected) {
+            mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, mushroomPosition));
+        }
     }
 
     // Apply gravity (affect vertical movement)
@@ -487,14 +567,32 @@ function updatePlayerMovement() {
         downwardRaycasters[i].set(footCorners[i], new THREE.Vector3(0, -1, 0));
         downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
 
-        const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
+        const downwardIntersections = downwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
         if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
-            if (downwardIntersections[0].object.parent.name === "coins") {
-                continue;
+            const hitObject = downwardIntersections[0].object;
+
+            // Find the root Goomba model
+            const rootGoombaModel = findRootGoombaModel(hitObject);
+
+            // Check if the hit object is part of a Goomba
+            if (rootGoombaModel) {
+                console.log("Mario is stomping on a Goomba!");
+                if (velocity.y < 0) { // Mario is falling
+                    const goomba = goombas.find(g => g.model === rootGoombaModel);
+                    if (goomba && !isOnGround) {
+                        goomba.handleStomp();
+                        velocity.y = jumpStrength * 0.5; // Small bounce after stomping
+                        onGround = true; // Mario is considered on ground after stomping
+                    }
+                }
+            } else if (hitObject.parent.name === "coins") {
+                continue; // Ignore coins
+            } else {
+                // Normal ground collision
+                onGround = true;
+                player.position.y = downwardIntersections[0].point.y + 0.1;
+                velocity.y = 0;
             }
-            onGround = true;
-            player.position.y = downwardIntersections[0].point.y + 0.1;
-            velocity.y = 0;
         }
     }
 
@@ -542,6 +640,9 @@ class Goomba {
         this.isMirrored = false;
         this.mirrorInterval = null;
         this.model = null;
+        this.isAlive = true;
+        
+        this.boxHelper = null; // Add this to store the bounding box helper
 
         this.loadModel();
     }
@@ -552,7 +653,13 @@ class Goomba {
             this.model.position.copy(this.position);
             this.model.scale.set(0.1, 0.1, 0.1);
             this.model.rotation.y = (-1 * Math.PI) / 2; // Rotate to face the correct direction
+            this.model.name = "Goomba";
             this.scene.add(this.model);
+
+            // Create and add the bounding box helper
+            this.boxHelper = new THREE.BoxHelper(this.model, 0x00ff00); // Green wireframe box
+            this.scene.add(this.boxHelper);
+            this.boxHelper.visible = false;
 
             // Start the walking animation
             this.startWalking();
@@ -567,14 +674,13 @@ class Goomba {
             this.isMirrored = !this.isMirrored; // Toggle the mirrored state
 
             // Adjust the position when mirroring
-            if(this.isMovingForward) {
+            if (this.isMovingForward) {
                 if (this.isMirrored) {
                     this.model.position.z += 1.25; // Adjust this value as needed
                 } else {
                     this.model.position.z -= 1.25; // Adjust this value as needed
                 }
-            }
-            else {
+            } else {
                 if (this.isMirrored) {
                     this.model.position.z -= 1.25; // Adjust this value as needed
                 } else {
@@ -589,7 +695,7 @@ class Goomba {
     }
 
     update() {
-        if (!this.model) return;
+        if (!this.model || !this.isAlive) return;
 
         // Move forward or backward based on the current state
         if (this.isMovingForward) {
@@ -609,26 +715,50 @@ class Goomba {
             this.isMirrored = !this.isMirrored;
         }
 
-        // Check for collisions with Mario
-        const distanceToMario = this.model.position.distanceTo(player.position);
-        if (distanceToMario < 1) { // Adjust collision distance as needed
-            this.handleCollision();
+        // Update the bounding box helper to match the Goomba's current position
+        if (this.boxHelper) {
+            this.boxHelper.update(); // This ensures the box helper tracks the Goomba's movement
         }
     }
 
-    handleCollision() {
-        // Check if Mario is jumping on the Goomba
-        if (isJumping && player.position.y > this.model.position.y + 0.5) {
-            // Mario stomps the Goomba
-            this.scene.remove(this.model);
-            this.stopWalking();
+    handleStomp() {
+        if (!this.isAlive) return;
+
+        // Remove the Goomba from the scene
+        this.scene.remove(this.model);
+        if (this.boxHelper) {
+            this.scene.remove(this.boxHelper);
+        }
+        this.stopWalking();
+        this.isAlive = false;
+
+        // Remove the Goomba from the goombas array
+        const index = goombas.indexOf(this);
+        if (index !== -1) {
+            goombas.splice(index, 1);
+        }
+
+        console.log("Mario stomped the Goomba!");
+    }
+
+    handleMarioDamage() {
+        if (isInvincible) return; // If Mario is invincible, do nothing
+    
+        if (!hasPowerUp) {
+            // Mario dies and the level restarts
+            player.position.copy(new THREE.Vector3(5, 5, 3.82)); // Reset Mario's position
+            console.log("Mario died! Resetting position.");
         } else {
-            // Mario loses a life or takes damage
-            console.log("Mario hit by Goomba!");
-            // Implement logic for Mario losing a life or taking damage
+            // Mario loses powerup and returns to original state
+            hasPowerUp = false;
+            player.scale.set(1, 1, 1); // Reset Mario's size
+            console.log("Mario lost powerup!");
         }
+    
+        // Start invincibility
+        isInvincible = true;
+        invincibilityTimer = 0; // Reset the timer
     }
-
 }
 
 // Array to store all Goomba instances
@@ -649,6 +779,9 @@ goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 5.32), 10, 0
 
 const mtlLoader = new MTLLoader();
 const objLoader = new OBJLoader();
+
+// Array to store all Mushroom instances
+const mushrooms = [];
 
 class SuperMushroom {
     constructor(scene, mtlLoader, objLoader, position) {
@@ -711,12 +844,6 @@ class SuperMushroom {
     }
 }
 
-const mushrooms = [];
-
-// Create multiple mushrooms with different positions
-mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, new THREE.Vector3(21.5, 6.75, 4))); // Mushroom 1
-mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, new THREE.Vector3(82.69, 6.75, 4))); // Mushroom 2
-mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, new THREE.Vector3(114.71, 10.75, 4))); // Mushroom 3
 
 
 function animate() {
@@ -754,6 +881,19 @@ function animate() {
 
     // Switch models based on walking and jumping states
     switchModel(isWalking, isJumping);
+
+    // Update invincibility timer and flash Mario if invincible
+    if (isInvincible) {
+        invincibilityTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
+        if (invincibilityTimer >= invincibilityDuration) {
+            isInvincible = false; // End invincibility
+            invincibilityTimer = 0; // Reset the timer
+            player.visible = true; // Ensure Mario is visible after invincibility ends
+        } else {
+            // Flash Mario by toggling visibility
+            player.visible = !player.visible; // Toggle visibility every frame
+        }
+    }
     
     // Calculate the offset from the player based on the camera's current direction
     let offset = new THREE.Vector3();
