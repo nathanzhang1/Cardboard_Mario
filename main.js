@@ -1402,6 +1402,11 @@ function removeInvincibilityEffect() {
 }
 
 
+let angle = 0;
+const radius = 100;
+const radSpeed = 0.2;
+const amplitude = Math.PI / 3;
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -1422,6 +1427,13 @@ function animate() {
     // Check for underground coin collection
     checkCoinCollection();
 
+    angle += 0.02 * radSpeed;
+    const theta = amplitude * Math.sin(angle);
+
+    sunLight.position.y = radius * Math.cos(theta);
+    sunLight.position.z = radius * Math.sin(theta);
+
+    sunCube.position.copy(sunLight.position);
   
     // Handle bouncing blocks
     bouncingBlocks.forEach((entry, index) => {
