@@ -10,7 +10,7 @@ const gameState = {
     level: "1-1",
     timeLeft: 400,
     timerInterval: null,
-    gameStarted: false
+    gameStarted: false,
 };
 
 let questionBlock002_spawn = false;
@@ -142,8 +142,9 @@ function resetGame() {
     spawnGoombas();
 
     hasPowerUp = false;
-    hasStar = false;
-    removeInvincibilityEffect(); // Remove the invincibility shader
+    starTimer = starDuration;
+
+    if(underGround){underGround = false; lightSwitch(0);}
 
     player.scale.set(1, 1, 1); // Reset Mario's size
 
@@ -211,7 +212,6 @@ shadowHelper.visible = false;
 const planeGeometry = new THREE.PlaneGeometry(500, 500, 500, 500)
 const planeMaterial = new THREE.MeshBasicMaterial({color: 0x6185f8, side: THREE.DoubleSide})
 const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-//lane.position.set(0, -30, 0);
 plane.rotation.x = -Math.PI / 2;
 scene.add(plane);
 
@@ -514,6 +514,12 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "`") {
         showRays = !showRays;
         updateRayVisibility();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "r") {
+        resetGame();
     }
 });
 
@@ -881,22 +887,14 @@ function updatePlayerMovement() {
                 player.position.y = downwardIntersections[0].point.y + 0.1;
                 velocity.y = 0;
             }
-            
-            //let hitObject = downwardIntersections[0].object.parent;
         
-            player.position.y = downwardIntersections[0].point.y + 0.1;
-            velocity.y = 0;
             if (hitObject) 
             {      
-                
-                
                 if(hitObject.name == 'pipeTop4')
                 {
                     player.position.set(157 , -12, 4);   
                     lightSwitch(1); 
-                }
-                
-                                
+                }              
             }
         }
     }
@@ -932,8 +930,8 @@ function updatePlayerMovement() {
     }
 
     if ((player.position.y <= -30 && underGround ) || (player.position.y < -1 && !underGround)) {  // If Mario falls below y = -30
-        if(underGround){underGround = false; lightSwitch(0);}
         resetGame();
+        // player.position.set(5, 2.5, 4);
     }
 }
 
@@ -962,22 +960,21 @@ function lightSwitch(status = 0)
         lampCube.name = 'lampCube';
         scene.remove(sunLight);
         scene.remove(sunCube);
-        console.log("kek", lamp);
         scene.add(lamp);
-        scene.add(lampCube); 
+        scene.add(lampCube);
     }
     else if (status === 0)
     {
         underGround = false;
         scene.background = new THREE.Color(0x6185f8)
         planeMaterial.color.set(0x6185f8);
-        //plane.position.set(0, -30, 0);
 
-        lamp = scene.getObjectByName('lamp');
-        lampCube = scene.getObjectByName('lampCube');
-        console.log("bitch", scene);
-        scene.remove(lamp);
-        scene.remove(lampCube);
+        scene.children.forEach(child => {
+            if (child.name === "lamp") {
+                child.parent.remove(child);
+            }
+        })
+
         scene.add(sunLight);
         scene.add(sunCube);
     }
