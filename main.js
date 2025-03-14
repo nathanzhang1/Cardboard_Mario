@@ -38,8 +38,11 @@ scene.add(ambientLight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High-quality soft shadows
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-sunLight.position.set(100, 300, 100); // High up to simulate the sun
+const sunLight = new THREE.PointLight(0xffffff, 50000);
+sunLight.position.set(100, 100, 100); // High up to simulate the sun
+// sunLight.intensity = 3;
+// sunLight.distance = 5000;
+//sunLight.target.position.set(100, 0, 100);
 sunLight.castShadow = true;
 
 // Create the Sun Cube
@@ -49,21 +52,35 @@ const sunCube = new THREE.Mesh(sunGeometry, sunMaterial);
 
 // Position the sun cube at the same position as the light
 sunCube.position.copy(sunLight.position);
+
 scene.add(sunCube);
 
 sunLight.shadow.mapSize.width = 2048;  // Increase resolution
 sunLight.shadow.mapSize.height = 2048;
 
 sunLight.shadow.camera.near = 0.5;     // Adjust near plane
-sunLight.shadow.camera.far = 1000;      // Increase far plane
+sunLight.shadow.camera.far = 500;      // Increase far plane
 
-sunLight.shadow.camera.left = -300;    // Expand shadow coverage
-sunLight.shadow.camera.right = 300;
+sunLight.shadow.camera.left = -500;    // Expand shadow coverage
+sunLight.shadow.camera.right = 500;
 sunLight.shadow.camera.top = 300;
 sunLight.shadow.camera.bottom = -300;
 
 // Add light to the scene
 scene.add(sunLight);
+
+const helper = new THREE.PointLightHelper(sunLight);
+scene.add(helper);
+
+const shadowHelper = new THREE.CameraHelper(sunLight.shadow.camera);
+scene.add(shadowHelper);
+
+const planeGeometry = new THREE.PlaneGeometry(500, 500, 500, 500)
+const planeMaterial = new THREE.MeshBasicMaterial({color: 0x6185f8, side: THREE.DoubleSide})
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+//lane.position.set(0, -30, 0);
+plane.rotation.x = -Math.PI / 2;
+scene.add(plane);
 
 let level;
 let parts = {};
@@ -97,7 +114,7 @@ loader.load(
         //level.scale.set(2, 2, 2);
         scene.add(level);
 
-        console.log('level', level.children[0].children[0].children[0].children[1]);
+       
         let elements = level.children[0].children[0].children[0].children[1];
         elements.children.forEach(function(child){
             convertMaterialsAndEnableShadows(child);
@@ -105,7 +122,7 @@ loader.load(
         })
 
 
-        console.log('parts', parts);
+        //console.log('parts', parts);
     },
     function (xhr) {
         console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}% loaded`);
@@ -137,6 +154,7 @@ const starDuration = 10000; // 1 second of invincibility
 
 let marioSize;
 let marioCenter;
+let win = false;
 
 // Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
@@ -320,7 +338,7 @@ document.addEventListener("keyup", (event) =>{
         if((state % 3) == 2){scene.remove(level);}
         if((state % 3) == 0){scene.remove(cube); scene.add(level);}
 
-        console.log("state", state % 3);
+        //console.log("state", state % 3);
     
     }
     if(event.key == 'p'){
@@ -329,7 +347,7 @@ document.addEventListener("keyup", (event) =>{
             stuff = parts['pipes'];
            
             scene.remove(stuff);
-            console.log('part removed')
+            //console.log('part removed')
         }
         else if (!appear){
             appear = true; 
@@ -337,7 +355,7 @@ document.addEventListener("keyup", (event) =>{
             stuff.position.set(offset, 0, 0);    
 
             sceneAdd(scene, stuff);
-            console.log('part added');
+            //console.log('part added');
         }
     }
     if(event.key === '1') console.log('parts', parts);
@@ -358,7 +376,7 @@ let velocity = { x: 0, y: 0, z: 0 };
 const speed = 0.15;  // Movement speed  
 const gravity = 0.02;  // Gravity force  
 const jumpStrength = 0.5;
-const terminalVelocity = -0.8;
+const terminalVelocity = -0.5;
 let isOnGround = false;  
 
 
@@ -444,7 +462,7 @@ function checkCoinCollection() {
                     collectedCoins.add(coin);
                     coin.parent.remove(coin);
                     coinCount++;
-                    console.log(coinCount);
+                    //console.log(coinCount);
                 }
             }
         });
@@ -481,6 +499,7 @@ function updatePlayerMovement() {
     let direction = new THREE.Vector3();
     let moveDirection = new THREE.Vector3();
     let right = new THREE.Vector3();
+   
 
     if (keys.forward || keys.backward || keys.left || keys.right) {
         // Get camera's forward direction
@@ -516,7 +535,7 @@ function updatePlayerMovement() {
         const forwardIntersections = forwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
         if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
             const hitObject = forwardIntersections[0].object;
-
+            //console.log(forwardIntersections);
             // Find the root Goomba model
             const rootGoombaModel = findRootGoombaModel(hitObject);
 
@@ -530,6 +549,17 @@ function updatePlayerMovement() {
             } else if (hitObject.parent.name === "coins") {
                 continue; // Ignore coins
             } else {
+
+           if(hitObject.name == 'pipeTop5')
+           {
+             player.position.set(170.5, 4.2, 4)
+             lightSwitch(0);
+           }
+           if(hitObject.name == 'flagBrick')
+           {
+             win = true;
+           }
+        
     
             // Check if only the bottom rays (0 and 1) detect a collision while the top ones (2 and 3) do not
             if (i < 2) {
@@ -712,6 +742,10 @@ function updatePlayerMovement() {
         downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
 
         const downwardIntersections = downwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
+        //console.log(downwardIntersections);
+        
+        // const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
+        //console.log(downwardIntersections)
         if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
             const hitObject = downwardIntersections[0].object;
 
@@ -736,6 +770,16 @@ function updatePlayerMovement() {
                 onGround = true;
                 player.position.y = downwardIntersections[0].point.y + 0.1;
                 velocity.y = 0;
+            }
+            
+            //let hitObject = downwardIntersections[0].object.parent;
+        
+            player.position.y = downwardIntersections[0].point.y + 0.1;
+            velocity.y = 0;
+            if (hitObject && hitObject.name == 'pipeTop4')
+            {      
+                player.position.set(157 , -12, 4);   
+                lightSwitch(1);                 
             }
         }
     }
@@ -778,6 +822,45 @@ function updatePlayerMovement() {
     }
 }
 
+let lamp;
+function lightSwitch(status = 0)
+{
+    console.log('status', status);
+    
+    
+    if (status)
+    {
+        planeMaterial.color.set(0x000000);
+        plane.position.set(0, -1, 0);
+        scene.background = new THREE.Color(0x000000)
+
+        lamp = new THREE.PointLight(0xffdc52, 50);
+        lamp.position.set(160, -3, 2); // High up to simulate the sun
+        lamp.castShadow = true; 
+        const lampGeometry = new THREE.BoxGeometry(1, 1, 1); // Small cube
+        const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xffdc52 });
+        let lampCube = new THREE.Mesh(lampGeometry, lampMaterial);
+        lampCube.position.copy(lamp.position)
+        scene.remove(sunLight);
+        scene.remove(sunCube);
+        scene.add(lamp);
+        scene.add(lampCube);
+
+        
+    }
+    else if (status === 0)
+    {
+        console.log('rahhhhhhhhhhhh');
+        scene.background = new THREE.Color(0x6185f8)
+        planeMaterial.color.set(0x6185f8);
+        //plane.position.set(0, -30, 0);
+        lamp.intensity = 0;
+        scene.remove(lamp);
+        //scene.remove(lampCube);
+        scene.add(sunLight);
+        scene.add(sunCube);
+    }
+}
 
 
 class Goomba {
@@ -1206,7 +1289,9 @@ function animate() {
 
     // Check for underground coin collection
     checkCoinCollection();
+    //console.log(player.position);
 
+  
     // Handle bouncing blocks
     bouncingBlocks.forEach((entry, index) => {
         let { block, startY, upY, direction } = entry;
@@ -1238,6 +1323,16 @@ function animate() {
     // Switch models based on walking and jumping states
     switchModel(isWalking, isJumping);
 
+    //animate the flag if win is true
+    if(win)
+    {
+        let f = parts['flag'].children[0];
+        if (f.position.y > -8)
+        {
+            f.position.y -= 0.1;
+            
+        }
+    }
     // Update invincibility timer and flash Mario if invincible
     if (isInvincible) {
         invincibilityTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
