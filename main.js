@@ -287,6 +287,8 @@ const starDuration = 10000; // 1 second of invincibility
 let marioSize;
 let marioCenter;
 let win = false;
+let victoryScreenTimer = 0;
+const victoryScreenDuration = 500;
 
 // Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
@@ -675,6 +677,7 @@ function updatePlayerMovement() {
            if(hitObject.name == 'flagBrick')
            {
              win = true;
+             gameState.score += 5000;
            }
         
     
@@ -1439,13 +1442,20 @@ function animate() {
     // Switch models based on walking and jumping states
     switchModel(isWalking, isJumping);
 
+    const victoryScreen = document.getElementById("victory-screen");
+
     //animate the flag if win is true
-    if (win)
-    {
+    if (win) {
         let f = parts['flag'].children[0];
-        if (f.position.y > -8)
-        {
+        if (f.position.y > -8) {
             f.position.y -= 0.1;
+        }
+        else {
+            gameState.timeLeft = 400;
+            victoryScreenTimer += 16;
+            if (victoryScreenTimer >= victoryScreenDuration) {
+                victoryScreen.style.display = "flex";
+            }
         }
     }
 
