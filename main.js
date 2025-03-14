@@ -131,6 +131,9 @@ let hasPowerUp = false; // To handle if Mario has a mushroom
 let isInvincible = false; // Tracks if Mario is currently invincible
 let invincibilityTimer = 0; // Tracks how long Mario has been invincible
 const invincibilityDuration = 1000; // 1 second of invincibility
+let hasStar = false; //To handle if Mario has a star
+let starTimer = 0; // Tracks how long Mario has been invincible
+const starDuration = 10000; // 1 second of invincibility
 
 let marioSize;
 let marioCenter;
@@ -159,7 +162,7 @@ loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
     pivot.add(idleModel);
 
     // Position the pivot group in the scene
-    pivot.position.set(152, 2.5, 3.82);
+    pivot.position.set(5, 2.5, 3.82);
 
     // Update your player reference to the pivot group
     player = pivot;
@@ -463,6 +466,8 @@ let questionBlock002_spawn = false;
 let questionBlock005_spawn = false;
 let questionBlock0010_spawn = false;
 
+let starBrick_spawn = false;
+
 let brickCoinSpawns = {
     brick001: false,
     brick003: false,
@@ -590,8 +595,15 @@ function updatePlayerMovement() {
                 }
                 if (hitObject && hitObject.name === "questionBlock010") {
                     if(!questionBlock0010_spawn) {
+                        console.log("HERE");
                         spawnMushroom(hitObject.name);
                         questionBlock0010_spawn = true;
+                    }
+                }
+                if (hitObject && hitObject.name === "brick019") {
+                    if(!starBrick_spawn) {
+                        spawnStar(hitObject.name);
+                        starBrick_spawn = true;
                     }
                 }
 
@@ -628,11 +640,26 @@ function updatePlayerMovement() {
             default:
                 return;
         }
-    
         // Check if the mushroom has already been spawned
         const mushroom = mushrooms.find(m => m.position.equals(mushroomPosition));
         if (!mushroom || mushroom.isCollected) {
             mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, mushroomPosition));
+        }
+    }
+
+    function spawnStar(blockName) {
+        let starPosition;
+        switch (blockName) {
+            case "brick019":
+                starPosition = new THREE.Vector3(106.69, 6.75, 4);
+                break;
+            default:
+                return;
+        }
+        // Check if the star has already been spawned
+        const star = superStars.find(m => m.position.equals(starPosition));
+        if (!star || star.isCollected) {
+            superStars.push(new SuperStar(scene, loader, starPosition));
         }
     }
 
@@ -661,7 +688,7 @@ function updatePlayerMovement() {
                 return;
         }
 
-        // Check if the mushroom has already been spawned
+        // Check if the coin has already been spawned
         const brickCoin = brickCoins.find(coin => coin.position.equals(brickCoinPosition));
         if (!brickCoin || brickCoin.isCollected) {
             brickCoins.push(new BrickCoin(scene, loader, brickCoinPosition));
@@ -874,6 +901,11 @@ class Goomba {
     }
 
     handleMarioDamage() {
+        if (hasStar) { // If Mario has a star, the Goomba dies
+            this.handleStomp();
+            return;
+        }
+
         if (isInvincible) return; // If Mario is invincible, do nothing
     
         if (!hasPowerUp) {
@@ -976,6 +1008,74 @@ class SuperMushroom {
     }
 }
 
+class SuperStar {
+    constructor(scene, loader, position) {
+        this.scene = scene;
+        this.loader = loader;
+        this.position = position.clone();
+        this.model = null;
+        this.isCollected = false;
+        this.rotationSpeed = 0.02;
+
+        this.loadModel();
+    }
+
+    loadModel() {
+        this.loader.load('assets/super_mario_64_star.glb', (gltf) => {
+            this.model = gltf.scene;
+            this.model.position.copy(this.position);
+            this.model.scale.set(.35, .35, .35); // Adjust scale as needed
+            this.scene.add(this.model);
+
+            // Enable shadows for the Super Star and all its meshes
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+        }, undefined, (error) => {
+            console.error("Error loading Super Star model:", error);
+        });
+    }
+
+    update() {
+        if (!this.model || this.isCollected) return;
+
+        // Rotate the star around its Y-axis
+        this.model.rotation.y += this.rotationSpeed;
+
+        // Add a bobbing effect
+        this.model.position.y = this.position.y + Math.sin(performance.now() * 0.005) * 0.2;
+
+        // Check for collision with Mario
+        const distanceToMario = this.model.position.distanceTo(player.position);
+        if (distanceToMario < 1) { // Adjust collision distance as needed
+            this.handleCollision();
+        }
+    }
+
+    handleCollision() {
+        if (!this.isCollected) {
+            this.isCollected = true;
+            this.scene.remove(this.model); // Remove the Super Star from the scene
+            this.applyPowerUp();
+        }
+    }
+
+    applyPowerUp() {
+        if (!hasStar) {
+            hasStar = true;
+            starTimer = 0; // Reset the timer
+            applyInvincibilityEffect(); // Apply the invincibility shader
+            console.log("Mario is invincible!");
+        }
+    }
+}
+
+const superStars = [];
+//superStars.push(new SuperStar(scene, loader, new THREE.Vector3(106.69, 6.75, 4)));
+
 const brickCoins = [];
 
 class BrickCoin {
@@ -1030,6 +1130,71 @@ class BrickCoin {
 }
 
 
+const invincibilityShaderMaterial = new THREE.ShaderMaterial({
+    vertexShader: `
+        varying vec3 vWorldPosition;
+
+        void main() {
+            vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz; // Calculate world position
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        varying vec3 vWorldPosition; // Pass the world position to the fragment shader
+        uniform float time;
+
+        void main() {
+            // Define a set of colors for the gradient
+            vec3 color1 = vec3(1.0, 0.0, 0.0); // Red
+            vec3 color2 = vec3(0.0, 1.0, 0.0); // Green
+            vec3 color3 = vec3(0.0, 0.0, 1.0); // Blue
+            vec3 color4 = vec3(1.0, 1.0, 0.0); // Yellow
+
+            // Create a gradient based on world position and time
+            float gradient = sin(vWorldPosition.x * 0.5 + time * 2.0) * 0.5 + 0.5; // Oscillates between 0 and 1
+
+            // Blend between colors based on the gradient
+            vec3 color;
+            if (gradient < 0.25) {
+                color = mix(color1, color2, gradient * 4.0);
+            } else if (gradient < 0.5) {
+                color = mix(color2, color3, (gradient - 0.25) * 4.0);
+            } else if (gradient < 0.75) {
+                color = mix(color3, color4, (gradient - 0.5) * 4.0);
+            } else {
+                color = mix(color4, color1, (gradient - 0.75) * 4.0);
+            }
+
+            // Output the final color
+            gl_FragColor = vec4(color, 1.0);
+        }
+    `,
+    uniforms: {
+        time: { value: 0.0 } // Time uniform to animate the effect
+    }
+});
+
+let originalMaterials = []; // Store Mario's original materials
+
+function applyInvincibilityEffect() {
+    player.traverse((child) => {
+        if (child.isMesh) {
+            originalMaterials.push(child.material); // Save the original material
+            child.material = invincibilityShaderMaterial; // Apply the invincibility shader
+        }
+    });
+}
+
+function removeInvincibilityEffect() {
+    let i = 0;
+    player.traverse((child) => {
+        if (child.isMesh) {
+            child.material = originalMaterials[i++]; // Restore the original material
+        }
+    });
+    originalMaterials = []; // Clear the stored materials
+}
+
 
 function animate() {
     requestAnimationFrame(animate);
@@ -1063,6 +1228,9 @@ function animate() {
     // Update all BrickCoins
     brickCoins.forEach(coin => coin.update());
 
+    // Update all Super Stars
+    superStars.forEach(star => star.update());
+
     // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
     isJumping = !isOnGround; // Mario is jumping if he's not on the ground
@@ -1080,6 +1248,22 @@ function animate() {
         } else {
             // Flash Mario by toggling visibility
             player.visible = !player.visible; // Toggle visibility every frame
+        }
+    }
+
+    // Update Super Star effect
+    if (hasStar) {
+        starTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
+
+        // Update the invincibility shader's time uniform for animation
+        invincibilityShaderMaterial.uniforms.time.value = performance.now() * 0.001;
+
+        // End Super Star effect after 10 seconds
+        if (starTimer >= starDuration) {
+            hasStar = false; // End Super Star effect
+            starTimer = 0; // Reset the timer
+            removeInvincibilityEffect(); // Remove the invincibility shader
+            console.log("Super Star effect ended!");
         }
     }
     
