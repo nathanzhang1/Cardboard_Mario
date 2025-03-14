@@ -457,10 +457,18 @@ function updatePlayerMovement() {
     for (let i = 0; i < 4; i++) {
         downwardRaycasters[i].set(footCorners[i], new THREE.Vector3(0, -1, 0));
         downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
-
+        
+        
         const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
+        console.log(downwardIntersections)
         if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
             onGround = true;
+            let hitObject = downwardIntersections[0].object.parent;
+            console.log('hitO', hitObject);
+            if (hitObject && hitObject.name == 'pipe4')
+            {
+                player.position.set(100, 100, 100);
+            }
             player.position.y = downwardIntersections[0].point.y + 0.1;
             velocity.y = 0;
         }
