@@ -4,20 +4,153 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 
+const gameState = {
+    score: 0,  // Placeholder for future score implementation
+    coins: 0,
+    level: "1-1",
+    timeLeft: 400,
+    timerInterval: null,
+    gameStarted: false,
+};
 
-let gameStarted = false;
+let questionBlock002_spawn = false;
+let questionBlock005_spawn = false;
+let questionBlock0010_spawn = false;
+
+let brickCoinSpawns = {
+    brick001: false,
+    brick003: false,
+    brick005: false,
+    brick017: false,
+    brick027: false,
+    brick028: false,
+}
+
+let starBrick_spawn = false;
+
+window.onload = () => {
+    document.getElementById("game-overlay").style.display = "none"; // Ensure it's hidden at start
+};
 
 // Hide title screen overlay when Enter is pressed
 document.addEventListener("keydown", (event) => {
     if (event.code === "Enter") {
-        const titleScreen = document.getElementById("title-screen");
-        if (titleScreen) {
-            titleScreen.style.display = "none";  // Hides the overlay
-        }
-        gameStarted = true;
+        startGame();
     }
 });
 
+function startGameTimer() {
+    if (gameState.timerInterval) return; // Prevent multiple timers
+
+    gameState.gameStarted = true;
+    gameState.timerInterval = setInterval(() => {
+        if (gameState.timeLeft > 0) {
+            gameState.timeLeft--;
+            document.getElementById("timer").textContent = gameState.timeLeft;
+        } else {
+            clearInterval(gameState.timerInterval);
+            console.log("Time's up! Game over.");
+            player.position.copy(new THREE.Vector3(5, 5, 3.82)); // Reset Mario's position
+        }
+    }, 1000);
+}
+
+function updateOverlay() {
+    document.getElementById("score").textContent = gameState.score.toString().padStart(6, "0");
+    document.getElementById("coins").textContent = gameState.coins;
+    document.getElementById("level").textContent = gameState.level;
+    document.getElementById("timer").textContent = gameState.timeLeft;
+}
+
+function spawnGoombas() {
+    // Create multiple Goombas with different positions and movement ranges
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(17.5, 2.10, 3.32), 10, 0.05)); // Goomba 1
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(43.75, 2.10, 3.32), 2, 0.05)); // Goomba 2
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(53.5, 2.10, 3.32), 3.5, 0.05)); // Goomba 3
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(82.5, 2.10, 1.32), 5, 0.05)); // Goomba 4
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(82.5, 2.10, 5.32), 5, 0.05)); // Goomba 5
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(105, 2.10, 3.32), 10, 0.05)); // Goomba 6
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(125, 2.10, 1.32), 10, 0.05)); // Goomba 7
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(125, 2.10, 5.32), 10, 0.05)); // Goomba 8
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 1.32), 10, 0.05)); // Goomba 9
+    goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 5.32), 10, 0.05)); // Goomba 10
+}
+
+function startGame() {
+    gameState.gameStarted = true;
+
+    const titleScreen = document.getElementById("title-screen");
+    if (titleScreen) {
+        titleScreen.style.display = "none";  // Hides the overlay
+    }
+
+    // Show overlay when the game starts
+    document.getElementById("game-overlay").style.display = "flex";
+
+    loadLevel();
+
+    spawnGoombas();
+
+    // Start the game timer
+    startGameTimer();
+}
+
+function resetGame() {
+    gameState.timeLeft = 400;
+    gameState.coins = 0;
+    gameState.score = 0;
+
+    startGameTimer();
+    updateOverlay();
+
+    scene.remove(level);
+    loadLevel();
+
+    for (let key in brickCoinSpawns) {
+        if (brickCoinSpawns.hasOwnProperty(key)) {
+            brickCoinSpawns[key] = false;
+        }
+    }
+
+    questionBlock0010_spawn = false;
+    questionBlock002_spawn = false;
+    questionBlock005_spawn = false;
+
+    starBrick_spawn = false;
+
+    mushrooms.forEach(mushroom => {
+        mushroom.removeSelf();
+    })
+
+    brickCoins.forEach(coin => {
+        coin.removeSelf();
+    })
+
+    goombas.forEach(goomba => {
+        goomba.removeSelf();
+    })
+
+    superStars.forEach(star => {
+        star.removeSelf();
+    })
+
+    goombas = [];
+    mushrooms = [];
+    brickCoins = [];
+    superStars = [];
+
+    spawnGoombas();
+
+    hasPowerUp = false;
+    starTimer = starDuration;
+
+    if(underGround){underGround = false; lightSwitch(0);}
+
+    player.scale.set(1, 1, 1); // Reset Mario's size
+
+    velocity.y = 0;
+    player.position.set(5, 2.5, 3.82);
+}
 
 
 // Set up scene, camera, renderer
@@ -79,7 +212,6 @@ shadowHelper.visible = false;
 const planeGeometry = new THREE.PlaneGeometry(500, 500, 500, 500)
 const planeMaterial = new THREE.MeshBasicMaterial({color: 0x6185f8, side: THREE.DoubleSide})
 const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-//lane.position.set(0, -30, 0);
 plane.rotation.x = -Math.PI / 2;
 scene.add(plane);
 
@@ -106,34 +238,34 @@ function convertMaterialsAndEnableShadows(object) {
     });
 }
 
-//scene.add(cube);
-loader.load(
-    'assets/marioLevel.glb', 
-    function (gltf) {
-        level = gltf.scene;
-        level.position.set(offset, 0, 0);
-        //level.scale.set(2, 2, 2);
-        scene.add(level);
-
-       
-        let elements = level.children[0].children[0].children[0].children[1];
-        elements.children.forEach(function(child){
-            convertMaterialsAndEnableShadows(child);
-            parts[child.name] = child;
-        })
-
-
-        //console.log('parts', parts);
-    },
-    function (xhr) {
-        console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}% loaded`);
-    },
-    function (error) {
-        console.error('Error loading model:', error);
-    },
+function loadLevel() {
+    loader.load(
+        'assets/marioLevel.glb', 
+        function (gltf) {
+            level = gltf.scene;
+            level.position.set(offset, 0, 0);
+            //level.scale.set(2, 2, 2);
+            scene.add(level);
     
-);
-
+            console.log('level', level.children[0].children[0].children[0].children[1]);
+            let elements = level.children[0].children[0].children[0].children[1];
+            elements.children.forEach(function(child){
+                convertMaterialsAndEnableShadows(child);
+                parts[child.name] = child;
+            })
+    
+    
+            console.log('parts', parts);
+        },
+        function (xhr) {
+            console.log(`Loading: ${(xhr.loaded / xhr.total) * 100}% loaded`);
+        },
+        function (error) {
+            console.error('Error loading model:', error);
+        },
+        
+    );
+}
 
 // //Create Player
 let player; // Declare player globally
@@ -157,6 +289,8 @@ const starDuration = 10000; // 1 second of invincibility
 let marioSize;
 let marioCenter;
 let win = false;
+let victoryScreenTimer = 0;
+const victoryScreenDuration = 500;
 
 // Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
@@ -383,6 +517,12 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
+document.addEventListener("keydown", (event) => {
+    if (event.key === "r") {
+        resetGame();
+    }
+});
+
 function updateRayVisibility() {
     forwardArrows.forEach(arrow => {
         if (arrow) arrow.visible = showRays;
@@ -445,7 +585,6 @@ function bounceBlock(block) {
     bouncingBlocks.push({ block, startY: block.position.y, upY: block.position.y + 0.5, direction: 1 });
 }
 
-let coinCount = 0;
 let collectedCoins = new Set();
 
 function checkCoinCollection() {
@@ -456,8 +595,9 @@ function checkCoinCollection() {
                 if (!collectedCoins.has(coin)) {
                     collectedCoins.add(coin);
                     coin.parent.remove(coin);
-                    coinCount++;
-                    //console.log(coinCount);
+                    gameState.coins++;
+                    gameState.score += 100;
+                    updateOverlay();
                 }
             }
         });
@@ -475,20 +615,6 @@ function findRootGoombaModel(object) {
     return null; // Return null if no Goomba model is found
 }
 
-let questionBlock002_spawn = false;
-let questionBlock005_spawn = false;
-let questionBlock0010_spawn = false;
-
-let starBrick_spawn = false;
-
-let brickCoinSpawns = {
-    brick001: false,
-    brick003: false,
-    brick005: false,
-    brick017: false,
-    brick027: false,
-    brick028: false,
-}
 
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
@@ -536,7 +662,6 @@ function updatePlayerMovement() {
 
             // Check if the hit object is part of a Goomba
             if (rootGoombaModel) {
-                console.log("Mario hit a Goomba from the side!");
                 const goomba = goombas.find(g => g.model === rootGoombaModel);
                 if (goomba) {
                     goomba.handleMarioDamage();
@@ -553,8 +678,8 @@ function updatePlayerMovement() {
            console.log(hitObject.name == 'flagBrick');
            if(hitObject.name == 'flagBrick' || hitObject.name == 'flag')
            {
-             console.log('you win!!', hitObject.name, forwardIntersections[0]);
-            win = true;
+             win = true;
+             gameState.score += 5000;
            }
         
     
@@ -608,40 +733,38 @@ function updatePlayerMovement() {
             let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
             if (hitObject && (hitObject.parent.name === "questionBlocks" || hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks" || hitObject.parent.parent.name === "bricks")) {
                 bounceBlock(hitObject);
-                if (hitObject && hitObject.name === "questionBlock002" ) {
+                if (hitObject.name === "questionBlock002" ) {
                     if(!questionBlock002_spawn) {
                         spawnMushroom(hitObject.name);
                         questionBlock002_spawn = true;
                     }
                 }
-                if (hitObject && hitObject.name === "questionBlock005" ) {
+                if (hitObject.name === "questionBlock005" ) {
                     if(!questionBlock005_spawn) {
                         spawnMushroom(hitObject.name);
                         questionBlock005_spawn = true;
                     }
                 }
-                if (hitObject && hitObject.name === "questionBlock010") {
+                if (hitObject.name === "questionBlock010") {
                     if(!questionBlock0010_spawn) {
                         console.log("HERE");
                         spawnMushroom(hitObject.name);
                         questionBlock0010_spawn = true;
                     }
                 }
-                if (hitObject && hitObject.name === "brick019") {
+
+                if (hitObject.name === "brick019") {
                     if(!starBrick_spawn) {
                         spawnStar(hitObject.name);
                         starBrick_spawn = true;
                     }
                 }
 
-                if (hitObject && hitObject.parent.name === "coinBrick") {
+                if (hitObject.parent.name === "coinBrick") {
                     if (!brickCoinSpawns[hitObject.name]) {
                         spawnBrickCoin(hitObject.name);
                         brickCoinSpawns[hitObject.name] = true;
                     }
-                    console.log("x", player.position.x);
-                    console.log("y", player.position.y);
-                    console.log("z", player.position.z);
                 }
             }
             hitCeiling = true;
@@ -748,7 +871,6 @@ function updatePlayerMovement() {
 
             // Check if the hit object is part of a Goomba
             if (rootGoombaModel) {
-                console.log("Mario is stomping on a Goomba!");
                 if (velocity.y < 0) { // Mario is falling
                     const goomba = goombas.find(g => g.model === rootGoombaModel);
                     if (goomba && !isOnGround) {
@@ -765,22 +887,14 @@ function updatePlayerMovement() {
                 player.position.y = downwardIntersections[0].point.y + 0.1;
                 velocity.y = 0;
             }
-            
-            //let hitObject = downwardIntersections[0].object.parent;
         
-            player.position.y = downwardIntersections[0].point.y + 0.1;
-            velocity.y = 0;
             if (hitObject) 
             {      
-                
-                
                 if(hitObject.name == 'pipeTop4')
                 {
                     player.position.set(157 , -12, 4);   
                     lightSwitch(1); 
-                }
-                
-                                
+                }              
             }
         }
     }
@@ -816,11 +930,8 @@ function updatePlayerMovement() {
     }
 
     if ((player.position.y <= -30 && underGround ) || (player.position.y < -1 && !underGround)) {  // If Mario falls below y = -30
-        // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
-        velocity.y = 0;
-        player.position.copy(new THREE.Vector3(5, 2.5, 3.82)); 
-        if(underGround){underGround = false; lightSwitch(0);}
-        console.log("Mario fell to his death! Resetting position.");
+        resetGame();
+        // player.position.set(5, 2.5, 4);
     }
 }
 
@@ -849,30 +960,25 @@ function lightSwitch(status = 0)
         lampCube.name = 'lampCube';
         scene.remove(sunLight);
         scene.remove(sunCube);
-        console.log("kek", lamp);
         scene.add(lamp);
         scene.add(lampCube);
-
-        
     }
     else if (status === 0)
     {
         underGround = false;
-        //console.log('rahhhhhhhhhhhh');
         scene.background = new THREE.Color(0x6185f8)
         planeMaterial.color.set(0x6185f8);
-        //plane.position.set(0, -30, 0);
 
-        lamp = scene.getObjectByName('lamp');
-        lampCube = scene.getObjectByName('lampCube');
-        console.log("bitch", scene);
-        scene.remove(lamp);
-        scene.remove(lampCube);
+        scene.children.forEach(child => {
+            if (child.name === "lamp") {
+                child.parent.remove(child);
+            }
+        })
+
         scene.add(sunLight);
         scene.add(sunCube);
     }
 }
-
 
 class Goomba {
     constructor(scene, loader, position, movementRange, speed) {
@@ -991,7 +1097,7 @@ class Goomba {
             goombas.splice(index, 1);
         }
 
-        console.log("Mario stomped the Goomba!");
+        gameState.score += 100;
     }
 
     handleMarioDamage() {
@@ -1003,43 +1109,37 @@ class Goomba {
         if (isInvincible) return; // If Mario is invincible, do nothing
     
         if (!hasPowerUp) {
-            // Mario dies and the level restarts
-            player.position.copy(new THREE.Vector3(5, 5, 3.82)); // Reset Mario's position
-            console.log("Mario died! Resetting position.");
+            resetGame();
         } else {
             // Mario loses powerup and returns to original state
             hasPowerUp = false;
             player.scale.set(1, 1, 1); // Reset Mario's size
-            console.log("Mario lost powerup!");
         }
     
         // Start invincibility
         isInvincible = true;
         invincibilityTimer = 0; // Reset the timer
     }
+
+    removeSelf() {
+        // Remove the Goomba from the scene
+        this.scene.remove(this.model);
+        if (this.boxHelper) {
+            this.scene.remove(this.boxHelper);
+        }
+        this.stopWalking();
+        this.isAlive = false;
+    }
 }
 
 // Array to store all Goomba instances
-const goombas = [];
-
-// Create multiple Goombas with different positions and movement ranges
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(17.5, 2.10, 3.32), 10, 0.05)); // Goomba 1
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(43.75, 2.10, 3.32), 2, 0.05)); // Goomba 2
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(53.5, 2.10, 3.32), 3.5, 0.05)); // Goomba 3
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(82.5, 2.10, 1.32), 5, 0.05)); // Goomba 4
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(82.5, 2.10, 5.32), 5, 0.05)); // Goomba 5
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(105, 2.10, 3.32), 10, 0.05)); // Goomba 6
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(125, 2.10, 1.32), 10, 0.05)); // Goomba 7
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(125, 2.10, 5.32), 10, 0.05)); // Goomba 8
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 1.32), 10, 0.05)); // Goomba 9
-goombas.push(new Goomba(scene, loader, new THREE.Vector3(175, 2.10, 5.32), 10, 0.05)); // Goomba 10
-
+let goombas = [];
 
 const mtlLoader = new MTLLoader();
 const objLoader = new OBJLoader();
 
 // Array to store all Mushroom instances
-const mushrooms = [];
+let mushrooms = [];
 
 class SuperMushroom {
     constructor(scene, mtlLoader, objLoader, position) {
@@ -1088,6 +1188,7 @@ class SuperMushroom {
     handleCollision() {
         if (!this.isCollected) {
             this.isCollected = true;
+            gameState.score += 1000;
             this.scene.remove(this.model); // Remove the mushroom from the scene
             this.applyPowerUp();
         }
@@ -1097,10 +1198,16 @@ class SuperMushroom {
         if (!hasPowerUp) {
             hasPowerUp = true;
             player.scale.set(1.2, 1.5, 1.2); // Increase Mario's size
-            console.log("Mario grew bigger!");
         }
     }
+
+    removeSelf() {
+        this.scene.remove(this.model);
+    }
 }
+
+
+let superStars = [];
 
 class SuperStar {
     constructor(scene, loader, position) {
@@ -1124,8 +1231,8 @@ class SuperStar {
             // Enable shadows for the Super Star and all its meshes
             this.model.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+                    child.castShadow = false;
+                    child.receiveShadow = false;
                 }
             });
         }, undefined, (error) => {
@@ -1161,16 +1268,18 @@ class SuperStar {
         if (!hasStar) {
             hasStar = true;
             starTimer = 0; // Reset the timer
+            gameState.score += 2000;
             applyInvincibilityEffect(); // Apply the invincibility shader
-            console.log("Mario is invincible!");
         }
+    }
+
+    removeSelf() {
+        this.scene.remove(this.model);
     }
 }
 
-const superStars = [];
-//superStars.push(new SuperStar(scene, loader, new THREE.Vector3(106.69, 6.75, 4)));
 
-const brickCoins = [];
+let brickCoins = [];
 
 class BrickCoin {
     constructor(scene, loader, position) {
@@ -1188,15 +1297,14 @@ class BrickCoin {
             this.model = gltf.scene;
             this.model.position.copy(this.position);
             this.model.scale.set(0.06, 0.06, 0.06);
-            // this.model.rotation.y = (-1 * Math.PI) / 2; // Rotate to face the correct direction
             this.model.name = "BrickCoin";
             this.scene.add(this.model);
 
             // Enable shadows for the Goomba and all its meshes
             this.model.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+                    child.castShadow = false;
+                    child.receiveShadow = false;
                 }
             });
         }, undefined, (error) => {
@@ -1217,12 +1325,16 @@ class BrickCoin {
         if (!this.isCollected) {
             this.isCollected = true;
             this.scene.remove(this.model); // Remove the coin from the scene
-            coinCount++;
-            console.log(coinCount);
+            gameState.coins++;
+            gameState.score += 100;
+            updateOverlay();
         }
     }
-}
 
+    removeSelf() {
+        this.scene.remove(this.model);
+    }
+}
 
 const invincibilityShaderMaterial = new THREE.ShaderMaterial({
     vertexShader: `
@@ -1293,14 +1405,22 @@ function removeInvincibilityEffect() {
 function animate() {
     requestAnimationFrame(animate);
 
-    if (!gameStarted) return;
+    if (gameState.gameStarted) {
+        updateOverlay();
+    }
+    else {
+        return;
+    }
+
+    if (!level) {
+        return;
+    }
 
     // Update player movement
     updatePlayerMovement();
 
     // Check for underground coin collection
     checkCoinCollection();
-    //console.log(player.position);
 
   
     // Handle bouncing blocks
@@ -1334,16 +1454,23 @@ function animate() {
     // Switch models based on walking and jumping states
     switchModel(isWalking, isJumping);
 
+    const victoryScreen = document.getElementById("victory-screen");
+
     //animate the flag if win is true
-    if(win)
-    {
+    if (win) {
         let f = parts['flag'].children[0];
-        if (f.position.y > -8)
-        {
+        if (f.position.y > -8) {
             f.position.y -= 0.1;
-            
+        }
+        else {
+            gameState.timeLeft = 400;
+            victoryScreenTimer += 16;
+            if (victoryScreenTimer >= victoryScreenDuration) {
+                victoryScreen.style.display = "flex";
+            }
         }
     }
+
     // Update invincibility timer and flash Mario if invincible
     if (isInvincible) {
         invincibilityTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
@@ -1369,7 +1496,6 @@ function animate() {
             hasStar = false; // End Super Star effect
             starTimer = 0; // Reset the timer
             removeInvincibilityEffect(); // Remove the invincibility shader
-            console.log("Super Star effect ended!");
         }
     }
     
