@@ -71,10 +71,11 @@ scene.add(sunLight);
 
 const helper = new THREE.PointLightHelper(sunLight);
 scene.add(helper);
+helper.visible = false;
 
 const shadowHelper = new THREE.CameraHelper(sunLight.shadow.camera);
 scene.add(shadowHelper);
-
+shadowHelper.visible = false;
 const planeGeometry = new THREE.PlaneGeometry(500, 500, 500, 500)
 const planeMaterial = new THREE.MeshBasicMaterial({color: 0x6185f8, side: THREE.DoubleSide})
 const plane = new THREE.Mesh(planeGeometry, planeMaterial);
@@ -143,6 +144,7 @@ let jumpModel; // To store the jumping model
 let isWalking = false; // To check if Mario is walking
 let isJumping = false; // To check if Mario is jumping
 let mirrorInterval; // To handle the mirroring effect
+let underGround = false;
 
 let hasPowerUp = false; // To handle if Mario has a mushroom
 let isInvincible = false; // Tracks if Mario is currently invincible
@@ -327,12 +329,11 @@ document.addEventListener("keyup", (event) => {
 });
 
 
-let state = 0;
-let appear = true;
-let stuff;
+let state = 0;  
+
 
 document.addEventListener("keyup", (event) =>{
-    if (event.key == "`"){
+    if (event.key == "l"){
         state ++;
         if((state % 3) == 1){scene.add(cube);}
         if((state % 3) == 2){scene.remove(level);}
@@ -341,23 +342,7 @@ document.addEventListener("keyup", (event) =>{
         //console.log("state", state % 3);
     
     }
-    if(event.key == 'p'){
-        if(appear){
-            appear = false; 
-            stuff = parts['pipes'];
-           
-            scene.remove(stuff);
-            //console.log('part removed')
-        }
-        else if (!appear){
-            appear = true; 
-            stuff = parts['pipes'];
-            stuff.position.set(offset, 0, 0);    
-
-            sceneAdd(scene, stuff);
-            //console.log('part added');
-        }
-    }
+    
     if(event.key === '1') console.log('parts', parts);
     if(event.key === '2') console.log('scene', scene);
 });
@@ -392,7 +377,7 @@ let showRays = false;
 let forwardArrows = [], upwardArrows = [], downwardArrows = [];
 
 document.addEventListener("keydown", (event) => {
-    if (event.key === "r" || event.key === "R") {
+    if (event.key === "`") {
         showRays = !showRays;
         updateRayVisibility();
     }
@@ -416,7 +401,17 @@ function updateRayVisibility() {
         if (goomba.boxHelper) {
             goomba.boxHelper.visible = showRays;
         }
+    
     });
+    if(helper.visible)
+    {
+        helper.visible = false;
+    }else{helper.visible = true;}
+
+    if(shadowHelper.visible)
+    {
+        shadowHelper.visible = false;
+    }else {shadowHelper.visible = true;}
 }
 
 function visualizeRay(origin, direction, existingArrow) {
@@ -555,9 +550,11 @@ function updatePlayerMovement() {
              player.position.set(170.5, 4.2, 4)
              lightSwitch(0);
            }
-           if(hitObject.name == 'flagBrick')
+           console.log(hitObject.name == 'flagBrick');
+           if(hitObject.name == 'flagBrick' || hitObject.name == 'flag')
            {
-             win = true;
+             console.log('you win!!', hitObject.name, forwardIntersections[0]);
+            win = true;
            }
         
     
@@ -742,10 +739,7 @@ function updatePlayerMovement() {
         downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
 
         const downwardIntersections = downwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
-        //console.log(downwardIntersections);
         
-        // const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
-        //console.log(downwardIntersections)
         if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
             const hitObject = downwardIntersections[0].object;
 
@@ -776,10 +770,17 @@ function updatePlayerMovement() {
         
             player.position.y = downwardIntersections[0].point.y + 0.1;
             velocity.y = 0;
-            if (hitObject && hitObject.name == 'pipeTop4')
+            if (hitObject) 
             {      
-                player.position.set(157 , -12, 4);   
-                lightSwitch(1);                 
+                
+                
+                if(hitObject.name == 'pipeTop4')
+                {
+                    player.position.set(157 , -12, 4);   
+                    lightSwitch(1); 
+                }
+                
+                                
             }
         }
     }
@@ -814,15 +815,17 @@ function updatePlayerMovement() {
         forwardRaycasters[i].set(forwardRayOrigins[i], moveDirection.clone().normalize());
     }
 
-    if (player.position.y <= -30) {  // If Mario falls below y = -30
+    if ((player.position.y <= -30 && underGround ) || (player.position.y < -1 && !underGround)) {  // If Mario falls below y = -30
         // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
         velocity.y = 0;
         player.position.copy(new THREE.Vector3(5, 2.5, 3.82)); 
+        if(underGround){underGround = false; lightSwitch(0);}
         console.log("Mario fell to his death! Resetting position.");
     }
 }
 
 let lamp;
+let lampCube;
 function lightSwitch(status = 0)
 {
     console.log('status', status);
@@ -830,6 +833,7 @@ function lightSwitch(status = 0)
     
     if (status)
     {
+        underGround = true;
         planeMaterial.color.set(0x000000);
         plane.position.set(0, -1, 0);
         scene.background = new THREE.Color(0x000000)
@@ -837,12 +841,15 @@ function lightSwitch(status = 0)
         lamp = new THREE.PointLight(0xffdc52, 50);
         lamp.position.set(160, -3, 2); // High up to simulate the sun
         lamp.castShadow = true; 
+        lamp.name = 'lamp';
         const lampGeometry = new THREE.BoxGeometry(1, 1, 1); // Small cube
         const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xffdc52 });
-        let lampCube = new THREE.Mesh(lampGeometry, lampMaterial);
+        lampCube = new THREE.Mesh(lampGeometry, lampMaterial);
         lampCube.position.copy(lamp.position)
+        lampCube.name = 'lampCube';
         scene.remove(sunLight);
         scene.remove(sunCube);
+        console.log("kek", lamp);
         scene.add(lamp);
         scene.add(lampCube);
 
@@ -850,13 +857,17 @@ function lightSwitch(status = 0)
     }
     else if (status === 0)
     {
-        console.log('rahhhhhhhhhhhh');
+        underGround = false;
+        //console.log('rahhhhhhhhhhhh');
         scene.background = new THREE.Color(0x6185f8)
         planeMaterial.color.set(0x6185f8);
         //plane.position.set(0, -30, 0);
-        lamp.intensity = 0;
+
+        lamp = scene.getObjectByName('lamp');
+        lampCube = scene.getObjectByName('lampCube');
+        console.log("bitch", scene);
         scene.remove(lamp);
-        //scene.remove(lampCube);
+        scene.remove(lampCube);
         scene.add(sunLight);
         scene.add(sunCube);
     }
