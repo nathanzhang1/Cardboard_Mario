@@ -116,6 +116,8 @@ function resetGame() {
     questionBlock002_spawn = false;
     questionBlock005_spawn = false;
 
+    starBrick_spawn = false;
+
     mushrooms.forEach(mushroom => {
         mushroom.removeSelf();
     })
@@ -128,13 +130,21 @@ function resetGame() {
         goomba.removeSelf();
     })
 
+    superStars.forEach(star => {
+        star.removeSelf();
+    })
+
     goombas = [];
     mushrooms = [];
     brickCoins = [];
+    superStars = [];
 
     spawnGoombas();
 
     hasPowerUp = false;
+    hasStar = false;
+    removeInvincibilityEffect(); // Remove the invincibility shader
+
     player.scale.set(1, 1, 1); // Reset Mario's size
 
     velocity.y = 0;
@@ -879,7 +889,6 @@ function updatePlayerMovement() {
             //let hitObject = downwardIntersections[0].object.parent;
         
             player.position.y = downwardIntersections[0].point.y + 0.1;
-            velocity.y = 0;
             if (hitObject && hitObject.name == 'pipeTop4')
             {      
                 player.position.set(157 , -12, 4);   
@@ -1182,6 +1191,9 @@ class SuperMushroom {
     }
 }
 
+
+let superStars = [];
+
 class SuperStar {
     constructor(scene, loader, position) {
         this.scene = scene;
@@ -1204,8 +1216,8 @@ class SuperStar {
             // Enable shadows for the Super Star and all its meshes
             this.model.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+                    child.castShadow = false;
+                    child.receiveShadow = false;
                 }
             });
         }, undefined, (error) => {
@@ -1241,8 +1253,8 @@ class SuperStar {
         if (!hasStar) {
             hasStar = true;
             starTimer = 0; // Reset the timer
+            gameState.score += 2000;
             applyInvincibilityEffect(); // Apply the invincibility shader
-            console.log("Mario is invincible!");
         }
     }
 
@@ -1250,72 +1262,6 @@ class SuperStar {
         this.scene.remove(this.model);
     }
 }
-
-class SuperStar {
-    constructor(scene, loader, position) {
-        this.scene = scene;
-        this.loader = loader;
-        this.position = position.clone();
-        this.model = null;
-        this.isCollected = false;
-        this.rotationSpeed = 0.02;
-
-        this.loadModel();
-    }
-
-    loadModel() {
-        this.loader.load('assets/super_mario_64_star.glb', (gltf) => {
-            this.model = gltf.scene;
-            this.model.position.copy(this.position);
-            this.model.scale.set(.35, .35, .35); // Adjust scale as needed
-            this.scene.add(this.model);
-
-            // Enable shadows for the Super Star and all its meshes
-            this.model.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
-        }, undefined, (error) => {
-            console.error("Error loading Super Star model:", error);
-        });
-    }
-
-    update() {
-        if (!this.model || this.isCollected) return;
-
-        // Rotate the star around its Y-axis
-        this.model.rotation.y += this.rotationSpeed;
-
-        // Add a bobbing effect
-        this.model.position.y = this.position.y + Math.sin(performance.now() * 0.005) * 0.2;
-
-        // Check for collision with Mario
-        const distanceToMario = this.model.position.distanceTo(player.position);
-        if (distanceToMario < 1) { // Adjust collision distance as needed
-            this.handleCollision();
-        }
-    }
-
-    handleCollision() {
-        if (!this.isCollected) {
-            this.isCollected = true;
-            this.scene.remove(this.model); // Remove the Super Star from the scene
-            this.applyPowerUp();
-        }
-    }
-
-    applyPowerUp() {
-        if (!hasStar) {
-            hasStar = true;
-            starTimer = 0; // Reset the timer
-            applyInvincibilityEffect(); // Apply the invincibility shader
-        }
-    }
-}
-
-const superStars = [];
 
 
 let brickCoins = [];
@@ -1342,8 +1288,8 @@ class BrickCoin {
             // Enable shadows for the Goomba and all its meshes
             this.model.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+                    child.castShadow = false;
+                    child.receiveShadow = false;
                 }
             });
         }, undefined, (error) => {
@@ -1460,7 +1406,6 @@ function animate() {
 
     // Check for underground coin collection
     checkCoinCollection();
-    //console.log(player.position);
 
   
     // Handle bouncing blocks
@@ -1495,15 +1440,15 @@ function animate() {
     switchModel(isWalking, isJumping);
 
     //animate the flag if win is true
-    if(win)
+    if (win)
     {
         let f = parts['flag'].children[0];
         if (f.position.y > -8)
         {
             f.position.y -= 0.1;
-            
         }
     }
+
     // Update invincibility timer and flash Mario if invincible
     if (isInvincible) {
         invincibilityTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
@@ -1529,7 +1474,6 @@ function animate() {
             hasStar = false; // End Super Star effect
             starTimer = 0; // Reset the timer
             removeInvincibilityEffect(); // Remove the invincibility shader
-            console.log("Super Star effect ended!");
         }
     }
     
