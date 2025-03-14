@@ -483,8 +483,8 @@ function checkCoinCollection() {
                     collectedCoins.add(coin);
                     coin.parent.remove(coin);
                     gameState.coins++;
+                    gameState.score += 100;
                     updateOverlay();
-                    console.log(gameState.coins);
                 }
             }
         });
@@ -619,26 +619,26 @@ function updatePlayerMovement() {
             let hitObject = upwardIntersections[0].object.parent; // This is the actual block eg. questionBlock001
             if (hitObject && (hitObject.parent.name === "questionBlocks" || hitObject.parent.parent.name === "questionBlocks" || hitObject.parent.name === "bricks" || hitObject.parent.parent.name === "bricks")) {
                 bounceBlock(hitObject);
-                if (hitObject && hitObject.name === "questionBlock002" ) {
+                if (hitObject.name === "questionBlock002" ) {
                     if(!questionBlock002_spawn) {
                         spawnMushroom(hitObject.name);
                         questionBlock002_spawn = true;
                     }
                 }
-                if (hitObject && hitObject.name === "questionBlock005" ) {
+                if (hitObject.name === "questionBlock005" ) {
                     if(!questionBlock005_spawn) {
                         spawnMushroom(hitObject.name);
                         questionBlock005_spawn = true;
                     }
                 }
-                if (hitObject && hitObject.name === "questionBlock010") {
+                if (hitObject.name === "questionBlock010") {
                     if(!questionBlock0010_spawn) {
                         spawnMushroom(hitObject.name);
                         questionBlock0010_spawn = true;
                     }
                 }
 
-                if (hitObject && hitObject.parent.name === "coinBrick") {
+                if (hitObject.parent.name === "coinBrick") {
                     if (!brickCoinSpawns[hitObject.name]) {
                         spawnBrickCoin(hitObject.name);
                         brickCoinSpawns[hitObject.name] = true;
@@ -736,7 +736,6 @@ function updatePlayerMovement() {
 
             // Check if the hit object is part of a Goomba
             if (rootGoombaModel) {
-                console.log("Mario is stomping on a Goomba!");
                 if (velocity.y < 0) { // Mario is falling
                     const goomba = goombas.find(g => g.model === rootGoombaModel);
                     if (goomba && !isOnGround) {
@@ -787,10 +786,8 @@ function updatePlayerMovement() {
     }
 
     if (player.position.y <= -30) {  // If Mario falls below y = -30
-        // Mario respawns a little higher than where he originally spawns in because he respawns in the ground otherwise for some unknown reason
         velocity.y = 0;
         player.position.copy(new THREE.Vector3(5, 2.5, 3.82)); 
-        console.log("Mario fell to his death! Resetting position.");
     }
 }
 
@@ -913,7 +910,7 @@ class Goomba {
             goombas.splice(index, 1);
         }
 
-        console.log("Mario stomped the Goomba!");
+        gameState.score += 100;
     }
 
     handleMarioDamage() {
@@ -921,13 +918,12 @@ class Goomba {
     
         if (!hasPowerUp) {
             // Mario dies and the level restarts
-            player.position.copy(new THREE.Vector3(5, 5, 3.82)); // Reset Mario's position
-            console.log("Mario died! Resetting position.");
+            velocity.y = 0;
+            player.position.copy(new THREE.Vector3(5, 2.5, 3.82)); // Reset Mario's position
         } else {
             // Mario loses powerup and returns to original state
             hasPowerUp = false;
             player.scale.set(1, 1, 1); // Reset Mario's size
-            console.log("Mario lost powerup!");
         }
     
         // Start invincibility
@@ -1005,6 +1001,7 @@ class SuperMushroom {
     handleCollision() {
         if (!this.isCollected) {
             this.isCollected = true;
+            gameState.score += 1000;
             this.scene.remove(this.model); // Remove the mushroom from the scene
             this.applyPowerUp();
         }
@@ -1014,7 +1011,6 @@ class SuperMushroom {
         if (!hasPowerUp) {
             hasPowerUp = true;
             player.scale.set(1.2, 1.5, 1.2); // Increase Mario's size
-            console.log("Mario grew bigger!");
         }
     }
 }
@@ -1067,7 +1063,7 @@ class BrickCoin {
             this.isCollected = true;
             this.scene.remove(this.model); // Remove the coin from the scene
             gameState.coins++;
-            console.log(gameState.coins);
+            gameState.score += 100;
             updateOverlay();
         }
     }
