@@ -4,20 +4,63 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 
+const gameState = {
+    score: 0,  // Placeholder for future score implementation
+    coins: 0,
+    level: "1-1",
+    timeLeft: 400,
+    timerInterval: null,
+    gameStarted: false
+};
 
-let gameStarted = false;
+window.onload = () => {
+    document.getElementById("game-overlay").style.display = "none"; // Ensure it's hidden at start
+};
 
 // Hide title screen overlay when Enter is pressed
 document.addEventListener("keydown", (event) => {
     if (event.code === "Enter") {
-        const titleScreen = document.getElementById("title-screen");
-        if (titleScreen) {
-            titleScreen.style.display = "none";  // Hides the overlay
-        }
-        gameStarted = true;
+        startGame();
     }
 });
 
+function startGameTimer() {
+    if (gameState.timerInterval) return; // Prevent multiple timers
+
+    gameState.gameStarted = true;
+    gameState.timerInterval = setInterval(() => {
+        if (gameState.timeLeft > 0) {
+            gameState.timeLeft--;
+            document.getElementById("timer").textContent = gameState.timeLeft;
+        } else {
+            clearInterval(gameState.timerInterval);
+            console.log("Time's up! Game over.");
+            player.position.copy(new THREE.Vector3(5, 5, 3.82)); // Reset Mario's position
+        }
+    }, 1000);
+}
+
+function updateOverlay() {
+    document.getElementById("score").textContent = gameState.score.toString().padStart(6, "0");
+    document.getElementById("coins").textContent = gameState.coins;
+    document.getElementById("level").textContent = gameState.level;
+    document.getElementById("timer").textContent = gameState.timeLeft;
+}
+
+function startGame() {
+    gameState.gameStarted = true;
+
+    const titleScreen = document.getElementById("title-screen");
+    if (titleScreen) {
+        titleScreen.style.display = "none";  // Hides the overlay
+    }
+
+    // Show overlay when the game starts
+    document.getElementById("game-overlay").style.display = "flex";
+
+    // Start the game timer
+    startGameTimer();
+}
 
 
 // Set up scene, camera, renderer
@@ -429,7 +472,6 @@ function bounceBlock(block) {
     bouncingBlocks.push({ block, startY: block.position.y, upY: block.position.y + 0.5, direction: 1 });
 }
 
-let coinCount = 0;
 let collectedCoins = new Set();
 
 function checkCoinCollection() {
@@ -440,8 +482,9 @@ function checkCoinCollection() {
                 if (!collectedCoins.has(coin)) {
                     collectedCoins.add(coin);
                     coin.parent.remove(coin);
-                    coinCount++;
-                    console.log(coinCount);
+                    gameState.coins++;
+                    updateOverlay();
+                    console.log(gameState.coins);
                 }
             }
         });
@@ -1023,8 +1066,9 @@ class BrickCoin {
         if (!this.isCollected) {
             this.isCollected = true;
             this.scene.remove(this.model); // Remove the coin from the scene
-            coinCount++;
-            console.log(coinCount);
+            gameState.coins++;
+            console.log(gameState.coins);
+            updateOverlay();
         }
     }
 }
@@ -1034,7 +1078,12 @@ class BrickCoin {
 function animate() {
     requestAnimationFrame(animate);
 
-    if (!gameStarted) return;
+    if (gameState.gameStarted) {
+        updateOverlay();
+    }
+    else {
+        return;
+    }
 
     // Update player movement
     updatePlayerMovement();
