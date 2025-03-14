@@ -26,6 +26,8 @@ let brickCoinSpawns = {
     brick028: false,
 }
 
+let starBrick_spawn = false;
+
 window.onload = () => {
     document.getElementById("game-overlay").style.display = "none"; // Ensure it's hidden at start
 };
@@ -158,8 +160,11 @@ scene.add(ambientLight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High-quality soft shadows
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-sunLight.position.set(100, 300, 100); // High up to simulate the sun
+const sunLight = new THREE.PointLight(0xffffff, 50000);
+sunLight.position.set(100, 100, 100); // High up to simulate the sun
+// sunLight.intensity = 3;
+// sunLight.distance = 5000;
+//sunLight.target.position.set(100, 0, 100);
 sunLight.castShadow = true;
 
 // Create the Sun Cube
@@ -169,21 +174,35 @@ const sunCube = new THREE.Mesh(sunGeometry, sunMaterial);
 
 // Position the sun cube at the same position as the light
 sunCube.position.copy(sunLight.position);
+
 scene.add(sunCube);
 
 sunLight.shadow.mapSize.width = 2048;  // Increase resolution
 sunLight.shadow.mapSize.height = 2048;
 
 sunLight.shadow.camera.near = 0.5;     // Adjust near plane
-sunLight.shadow.camera.far = 1000;      // Increase far plane
+sunLight.shadow.camera.far = 500;      // Increase far plane
 
-sunLight.shadow.camera.left = -300;    // Expand shadow coverage
-sunLight.shadow.camera.right = 300;
+sunLight.shadow.camera.left = -500;    // Expand shadow coverage
+sunLight.shadow.camera.right = 500;
 sunLight.shadow.camera.top = 300;
 sunLight.shadow.camera.bottom = -300;
 
 // Add light to the scene
 scene.add(sunLight);
+
+const helper = new THREE.PointLightHelper(sunLight);
+scene.add(helper);
+
+const shadowHelper = new THREE.CameraHelper(sunLight.shadow.camera);
+scene.add(shadowHelper);
+
+const planeGeometry = new THREE.PlaneGeometry(500, 500, 500, 500)
+const planeMaterial = new THREE.MeshBasicMaterial({color: 0x6185f8, side: THREE.DoubleSide})
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+//lane.position.set(0, -30, 0);
+plane.rotation.x = -Math.PI / 2;
+scene.add(plane);
 
 let level;
 let parts = {};
@@ -251,9 +270,13 @@ let hasPowerUp = false; // To handle if Mario has a mushroom
 let isInvincible = false; // Tracks if Mario is currently invincible
 let invincibilityTimer = 0; // Tracks how long Mario has been invincible
 const invincibilityDuration = 1000; // 1 second of invincibility
+let hasStar = false; //To handle if Mario has a star
+let starTimer = 0; // Tracks how long Mario has been invincible
+const starDuration = 10000; // 1 second of invincibility
 
 let marioSize;
 let marioCenter;
+let win = false;
 
 // Load the idle model
 loader.load('assets/mario_-_super_mario_bros_3d_sprite.glb', function (gltf) {
@@ -437,7 +460,7 @@ document.addEventListener("keyup", (event) =>{
         if((state % 3) == 2){scene.remove(level);}
         if((state % 3) == 0){scene.remove(cube); scene.add(level);}
 
-        console.log("state", state % 3);
+        //console.log("state", state % 3);
     
     }
     if(event.key == 'p'){
@@ -446,7 +469,7 @@ document.addEventListener("keyup", (event) =>{
             stuff = parts['pipes'];
            
             scene.remove(stuff);
-            console.log('part removed')
+            //console.log('part removed')
         }
         else if (!appear){
             appear = true; 
@@ -454,7 +477,7 @@ document.addEventListener("keyup", (event) =>{
             stuff.position.set(offset, 0, 0);    
 
             sceneAdd(scene, stuff);
-            console.log('part added');
+            //console.log('part added');
         }
     }
     if(event.key === '1') console.log('parts', parts);
@@ -475,7 +498,7 @@ let velocity = { x: 0, y: 0, z: 0 };
 const speed = 0.15;  // Movement speed  
 const gravity = 0.02;  // Gravity force  
 const jumpStrength = 0.5;
-const terminalVelocity = -0.8;
+const terminalVelocity = -0.5;
 let isOnGround = false;  
 
 
@@ -579,10 +602,12 @@ function findRootGoombaModel(object) {
     return null; // Return null if no Goomba model is found
 }
 
+
 function updatePlayerMovement() {
     let direction = new THREE.Vector3();
     let moveDirection = new THREE.Vector3();
     let right = new THREE.Vector3();
+   
 
     if (keys.forward || keys.backward || keys.left || keys.right) {
         // Get camera's forward direction
@@ -618,7 +643,7 @@ function updatePlayerMovement() {
         const forwardIntersections = forwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
         if (forwardIntersections.length > 0 && forwardIntersections[0].distance < forwardCollisionDist) {
             const hitObject = forwardIntersections[0].object;
-
+            //console.log(forwardIntersections);
             // Find the root Goomba model
             const rootGoombaModel = findRootGoombaModel(hitObject);
 
@@ -631,6 +656,17 @@ function updatePlayerMovement() {
             } else if (hitObject.parent.name === "coins") {
                 continue; // Ignore coins
             } else {
+
+           if(hitObject.name == 'pipeTop5')
+           {
+             player.position.set(170.5, 4.2, 4)
+             lightSwitch(0);
+           }
+           if(hitObject.name == 'flagBrick')
+           {
+             win = true;
+           }
+        
     
             // Check if only the bottom rays (0 and 1) detect a collision while the top ones (2 and 3) do not
             if (i < 2) {
@@ -696,8 +732,16 @@ function updatePlayerMovement() {
                 }
                 if (hitObject.name === "questionBlock010") {
                     if(!questionBlock0010_spawn) {
+                        console.log("HERE");
                         spawnMushroom(hitObject.name);
                         questionBlock0010_spawn = true;
+                    }
+                }
+
+                if (hitObject.name === "brick019") {
+                    if(!starBrick_spawn) {
+                        spawnStar(hitObject.name);
+                        starBrick_spawn = true;
                     }
                 }
 
@@ -706,9 +750,6 @@ function updatePlayerMovement() {
                         spawnBrickCoin(hitObject.name);
                         brickCoinSpawns[hitObject.name] = true;
                     }
-                    console.log("x", player.position.x);
-                    console.log("y", player.position.y);
-                    console.log("z", player.position.z);
                 }
             }
             hitCeiling = true;
@@ -734,11 +775,26 @@ function updatePlayerMovement() {
             default:
                 return;
         }
-    
         // Check if the mushroom has already been spawned
         const mushroom = mushrooms.find(m => m.position.equals(mushroomPosition));
         if (!mushroom || mushroom.isCollected) {
             mushrooms.push(new SuperMushroom(scene, mtlLoader, objLoader, mushroomPosition));
+        }
+    }
+
+    function spawnStar(blockName) {
+        let starPosition;
+        switch (blockName) {
+            case "brick019":
+                starPosition = new THREE.Vector3(106.69, 6.75, 4);
+                break;
+            default:
+                return;
+        }
+        // Check if the star has already been spawned
+        const star = superStars.find(m => m.position.equals(starPosition));
+        if (!star || star.isCollected) {
+            superStars.push(new SuperStar(scene, loader, starPosition));
         }
     }
 
@@ -767,7 +823,7 @@ function updatePlayerMovement() {
                 return;
         }
 
-        // Check if the mushroom has already been spawned
+        // Check if the coin has already been spawned
         const brickCoin = brickCoins.find(coin => coin.position.equals(brickCoinPosition));
         if (!brickCoin || brickCoin.isCollected) {
             brickCoins.push(new BrickCoin(scene, loader, brickCoinPosition));
@@ -791,6 +847,10 @@ function updatePlayerMovement() {
         downwardArrows[i] = visualizeRay(footCorners[i], new THREE.Vector3(0, -1, 0), downwardArrows[i]);
 
         const downwardIntersections = downwardRaycasters[i].intersectObjects([level, ...goombas.map(goomba => goomba.model)], true);
+        //console.log(downwardIntersections);
+        
+        // const downwardIntersections = downwardRaycasters[i].intersectObject(level, true);
+        //console.log(downwardIntersections)
         if (downwardIntersections.length > 0 && downwardIntersections[0].distance < downwardCollisionDist) {
             const hitObject = downwardIntersections[0].object;
 
@@ -814,6 +874,16 @@ function updatePlayerMovement() {
                 onGround = true;
                 player.position.y = downwardIntersections[0].point.y + 0.1;
                 velocity.y = 0;
+            }
+            
+            //let hitObject = downwardIntersections[0].object.parent;
+        
+            player.position.y = downwardIntersections[0].point.y + 0.1;
+            velocity.y = 0;
+            if (hitObject && hitObject.name == 'pipeTop4')
+            {      
+                player.position.set(157 , -12, 4);   
+                lightSwitch(1);                 
             }
         }
     }
@@ -853,7 +923,38 @@ function updatePlayerMovement() {
     }
 }
 
+let lamp;
+function lightSwitch(status = 0) {
+    if (status)
+    {
+        planeMaterial.color.set(0x000000);
+        plane.position.set(0, -1, 0);
+        scene.background = new THREE.Color(0x000000)
 
+        lamp = new THREE.PointLight(0xffdc52, 50);
+        lamp.position.set(160, -3, 2); // High up to simulate the sun
+        lamp.castShadow = true; 
+        const lampGeometry = new THREE.BoxGeometry(1, 1, 1); // Small cube
+        const lampMaterial = new THREE.MeshBasicMaterial({ color: 0xffdc52 });
+        let lampCube = new THREE.Mesh(lampGeometry, lampMaterial);
+        lampCube.position.copy(lamp.position)
+        scene.remove(sunLight);
+        scene.remove(sunCube);
+        scene.add(lamp);
+        scene.add(lampCube); 
+    }
+    else if (status === 0)
+    {
+        scene.background = new THREE.Color(0x6185f8)
+        planeMaterial.color.set(0x6185f8);
+        //plane.position.set(0, -30, 0);
+        lamp.intensity = 0;
+        scene.remove(lamp);
+        //scene.remove(lampCube);
+        scene.add(sunLight);
+        scene.add(sunCube);
+    }
+}
 
 class Goomba {
     constructor(scene, loader, position, movementRange, speed) {
@@ -976,6 +1077,11 @@ class Goomba {
     }
 
     handleMarioDamage() {
+        if (hasStar) { // If Mario has a star, the Goomba dies
+            this.handleStomp();
+            return;
+        }
+
         if (isInvincible) return; // If Mario is invincible, do nothing
     
         if (!hasPowerUp) {
@@ -1076,6 +1182,142 @@ class SuperMushroom {
     }
 }
 
+class SuperStar {
+    constructor(scene, loader, position) {
+        this.scene = scene;
+        this.loader = loader;
+        this.position = position.clone();
+        this.model = null;
+        this.isCollected = false;
+        this.rotationSpeed = 0.02;
+
+        this.loadModel();
+    }
+
+    loadModel() {
+        this.loader.load('assets/super_mario_64_star.glb', (gltf) => {
+            this.model = gltf.scene;
+            this.model.position.copy(this.position);
+            this.model.scale.set(.35, .35, .35); // Adjust scale as needed
+            this.scene.add(this.model);
+
+            // Enable shadows for the Super Star and all its meshes
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+        }, undefined, (error) => {
+            console.error("Error loading Super Star model:", error);
+        });
+    }
+
+    update() {
+        if (!this.model || this.isCollected) return;
+
+        // Rotate the star around its Y-axis
+        this.model.rotation.y += this.rotationSpeed;
+
+        // Add a bobbing effect
+        this.model.position.y = this.position.y + Math.sin(performance.now() * 0.005) * 0.2;
+
+        // Check for collision with Mario
+        const distanceToMario = this.model.position.distanceTo(player.position);
+        if (distanceToMario < 1) { // Adjust collision distance as needed
+            this.handleCollision();
+        }
+    }
+
+    handleCollision() {
+        if (!this.isCollected) {
+            this.isCollected = true;
+            this.scene.remove(this.model); // Remove the Super Star from the scene
+            this.applyPowerUp();
+        }
+    }
+
+    applyPowerUp() {
+        if (!hasStar) {
+            hasStar = true;
+            starTimer = 0; // Reset the timer
+            applyInvincibilityEffect(); // Apply the invincibility shader
+            console.log("Mario is invincible!");
+        }
+    }
+
+    removeSelf() {
+        this.scene.remove(this.model);
+    }
+}
+
+class SuperStar {
+    constructor(scene, loader, position) {
+        this.scene = scene;
+        this.loader = loader;
+        this.position = position.clone();
+        this.model = null;
+        this.isCollected = false;
+        this.rotationSpeed = 0.02;
+
+        this.loadModel();
+    }
+
+    loadModel() {
+        this.loader.load('assets/super_mario_64_star.glb', (gltf) => {
+            this.model = gltf.scene;
+            this.model.position.copy(this.position);
+            this.model.scale.set(.35, .35, .35); // Adjust scale as needed
+            this.scene.add(this.model);
+
+            // Enable shadows for the Super Star and all its meshes
+            this.model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+        }, undefined, (error) => {
+            console.error("Error loading Super Star model:", error);
+        });
+    }
+
+    update() {
+        if (!this.model || this.isCollected) return;
+
+        // Rotate the star around its Y-axis
+        this.model.rotation.y += this.rotationSpeed;
+
+        // Add a bobbing effect
+        this.model.position.y = this.position.y + Math.sin(performance.now() * 0.005) * 0.2;
+
+        // Check for collision with Mario
+        const distanceToMario = this.model.position.distanceTo(player.position);
+        if (distanceToMario < 1) { // Adjust collision distance as needed
+            this.handleCollision();
+        }
+    }
+
+    handleCollision() {
+        if (!this.isCollected) {
+            this.isCollected = true;
+            this.scene.remove(this.model); // Remove the Super Star from the scene
+            this.applyPowerUp();
+        }
+    }
+
+    applyPowerUp() {
+        if (!hasStar) {
+            hasStar = true;
+            starTimer = 0; // Reset the timer
+            applyInvincibilityEffect(); // Apply the invincibility shader
+        }
+    }
+}
+
+const superStars = [];
+
+
 let brickCoins = [];
 
 class BrickCoin {
@@ -1133,6 +1375,70 @@ class BrickCoin {
     }
 }
 
+const invincibilityShaderMaterial = new THREE.ShaderMaterial({
+    vertexShader: `
+        varying vec3 vWorldPosition;
+
+        void main() {
+            vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz; // Calculate world position
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        varying vec3 vWorldPosition; // Pass the world position to the fragment shader
+        uniform float time;
+
+        void main() {
+            // Define a set of colors for the gradient
+            vec3 color1 = vec3(1.0, 0.0, 0.0); // Red
+            vec3 color2 = vec3(0.0, 1.0, 0.0); // Green
+            vec3 color3 = vec3(0.0, 0.0, 1.0); // Blue
+            vec3 color4 = vec3(1.0, 1.0, 0.0); // Yellow
+
+            // Create a gradient based on world position and time
+            float gradient = sin(vWorldPosition.x * 0.5 + time * 2.0) * 0.5 + 0.5; // Oscillates between 0 and 1
+
+            // Blend between colors based on the gradient
+            vec3 color;
+            if (gradient < 0.25) {
+                color = mix(color1, color2, gradient * 4.0);
+            } else if (gradient < 0.5) {
+                color = mix(color2, color3, (gradient - 0.25) * 4.0);
+            } else if (gradient < 0.75) {
+                color = mix(color3, color4, (gradient - 0.5) * 4.0);
+            } else {
+                color = mix(color4, color1, (gradient - 0.75) * 4.0);
+            }
+
+            // Output the final color
+            gl_FragColor = vec4(color, 1.0);
+        }
+    `,
+    uniforms: {
+        time: { value: 0.0 } // Time uniform to animate the effect
+    }
+});
+
+let originalMaterials = []; // Store Mario's original materials
+
+function applyInvincibilityEffect() {
+    player.traverse((child) => {
+        if (child.isMesh) {
+            originalMaterials.push(child.material); // Save the original material
+            child.material = invincibilityShaderMaterial; // Apply the invincibility shader
+        }
+    });
+}
+
+function removeInvincibilityEffect() {
+    let i = 0;
+    player.traverse((child) => {
+        if (child.isMesh) {
+            child.material = originalMaterials[i++]; // Restore the original material
+        }
+    });
+    originalMaterials = []; // Clear the stored materials
+}
 
 
 function animate() {
@@ -1154,7 +1460,9 @@ function animate() {
 
     // Check for underground coin collection
     checkCoinCollection();
+    //console.log(player.position);
 
+  
     // Handle bouncing blocks
     bouncingBlocks.forEach((entry, index) => {
         let { block, startY, upY, direction } = entry;
@@ -1176,6 +1484,9 @@ function animate() {
     // Update all BrickCoins
     brickCoins.forEach(coin => coin.update());
 
+    // Update all Super Stars
+    superStars.forEach(star => star.update());
+
     // Check if Mario is walking or jumping
     isWalking = keys.forward || keys.backward || keys.left || keys.right;
     isJumping = !isOnGround; // Mario is jumping if he's not on the ground
@@ -1183,6 +1494,16 @@ function animate() {
     // Switch models based on walking and jumping states
     switchModel(isWalking, isJumping);
 
+    //animate the flag if win is true
+    if(win)
+    {
+        let f = parts['flag'].children[0];
+        if (f.position.y > -8)
+        {
+            f.position.y -= 0.1;
+            
+        }
+    }
     // Update invincibility timer and flash Mario if invincible
     if (isInvincible) {
         invincibilityTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
@@ -1193,6 +1514,22 @@ function animate() {
         } else {
             // Flash Mario by toggling visibility
             player.visible = !player.visible; // Toggle visibility every frame
+        }
+    }
+
+    // Update Super Star effect
+    if (hasStar) {
+        starTimer += 16; // Approximate time per frame (60 FPS = ~16ms per frame)
+
+        // Update the invincibility shader's time uniform for animation
+        invincibilityShaderMaterial.uniforms.time.value = performance.now() * 0.001;
+
+        // End Super Star effect after 10 seconds
+        if (starTimer >= starDuration) {
+            hasStar = false; // End Super Star effect
+            starTimer = 0; // Reset the timer
+            removeInvincibilityEffect(); // Remove the invincibility shader
+            console.log("Super Star effect ended!");
         }
     }
     
