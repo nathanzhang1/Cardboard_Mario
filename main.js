@@ -215,6 +215,49 @@ const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 plane.rotation.x = -Math.PI / 2;
 scene.add(plane);
 
+//Audio
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+const audioLoader = new THREE.AudioLoader();
+
+const mushroomSound = new THREE.Audio(listener);
+const coinSound = new THREE.Audio(listener);
+const goombaSound = new THREE.Audio(listener);
+const pipSound = new THREE.Audio(listener);
+const deathSound = new THREE.Audio(listener);
+const winSound = new THREE.Audio(listener);
+
+audioLoader.load('assets/Super Mario Bros. - Mushroom Sound Effect.mp3', function(buffer) {
+    mushroomSound.setBuffer(buffer); // Set the audio buffer
+    mushroomSound.setVolume(0.1);    // Set volume (0 to 1)
+});
+
+audioLoader.load('assets/Super Mario Bros. - Coin Sound Effect.mp3', function(buffer) {
+    coinSound.setBuffer(buffer); // Set the audio buffer
+    coinSound.setVolume(0.2);    // Set volume (0 to 1)
+});
+
+audioLoader.load('assets/Super Mario Bros- Goomba Stomp Sound.mp3', function(buffer) {
+    goombaSound.setBuffer(buffer); // Set the audio buffer
+    goombaSound.setVolume(1);    // Set volume (0 to 1)
+});
+
+audioLoader.load('assets/Super Mario Bros. -Pipe TravelPower Down Sound Effect -.mp3', function(buffer) {
+    pipSound.setBuffer(buffer); // Set the audio buffer
+    pipSound.setVolume(0.5);    // Set volume (0 to 1)
+});
+
+audioLoader.load('assets/Mario Death - Sound Effect (HD).mp3', function(buffer) {
+    deathSound.setBuffer(buffer); // Set the audio buffer
+    deathSound.setVolume(0.5);    // Set volume (0 to 1)
+});
+
+audioLoader.load('assets/Super Mario Bros (NES) Music - Level Clear.mp3', function(buffer) {
+    winSound.setBuffer(buffer); // Set the audio buffer
+    winSound.setVolume(0.5);    // Set volume (0 to 1)
+});
+
 let level;
 let parts = {};
 const offset = 66;
@@ -598,6 +641,11 @@ function checkCoinCollection() {
                     gameState.coins++;
                     gameState.score += 100;
                     updateOverlay();
+                    // Play the coin collection sound       ~`
+                    if (coinSound.isPlaying) {
+                        coinSound.stop(); // Stop the sound if it's already playing
+                    }
+                    coinSound.play(); // Play the sound
                 }
             }
         });
@@ -674,12 +722,23 @@ function updatePlayerMovement() {
            {
              player.position.set(170.5, 4.2, 4)
              lightSwitch(0);
+            
+                // Play the sound
+                if (pipSound.isPlaying) {
+                    pipSound.stop(); // Stop the sound if it's already playing
+                }
+                pipSound.play(); // Play the sound
            }
            console.log(hitObject.name == 'flagBrick');
            if(hitObject.name == 'flagBrick' || hitObject.name == 'flag')
            {
              win = true;
              gameState.score += 5000;
+            // Play the sound
+            if (winSound.isPlaying) {
+                winSound.stop(); // Stop the sound if it's already playing
+            }
+            winSound.play(); // Play the sound
            }
         
     
@@ -894,6 +953,12 @@ function updatePlayerMovement() {
                 {
                     player.position.set(157 , -12, 4);   
                     lightSwitch(1); 
+
+                    // Play the sound
+                    if (pipSound.isPlaying) {
+                        pipSound.stop(); // Stop the sound if it's already playing
+                    }
+                    pipSound.play(); // Play the sound
                 }              
             }
         }
@@ -930,6 +995,11 @@ function updatePlayerMovement() {
     }
 
     if ((player.position.y <= -30 && underGround ) || (player.position.y < -1 && !underGround)) {  // If Mario falls below y = -30
+        // Play the sound
+        if (deathSound.isPlaying) {
+            deathSound.stop(); // Stop the sound if it's already playing
+        }
+        deathSound.play(); // Play the sound
         resetGame();
         // player.position.set(5, 2.5, 4);
     }
@@ -1091,6 +1161,12 @@ class Goomba {
         this.stopWalking();
         this.isAlive = false;
 
+        // Play the goomba stomp sound
+        if (goombaSound.isPlaying) {
+            goombaSound.stop(); // Stop the sound if it's already playing
+                    }
+        goombaSound.play(); // Play the sound
+
         // Remove the Goomba from the goombas array
         const index = goombas.indexOf(this);
         if (index !== -1) {
@@ -1109,6 +1185,11 @@ class Goomba {
         if (isInvincible) return; // If Mario is invincible, do nothing
     
         if (!hasPowerUp) {
+            // Play the sound
+            if (deathSound.isPlaying) {
+                deathSound.stop(); // Stop the sound if it's already playing
+            }
+            deathSound.play(); // Play the sound
             resetGame();
         } else {
             // Mario loses powerup and returns to original state
@@ -1191,6 +1272,13 @@ class SuperMushroom {
             gameState.score += 1000;
             this.scene.remove(this.model); // Remove the mushroom from the scene
             this.applyPowerUp();
+
+            // Play the mushroom collection sound
+            if (mushroomSound.isPlaying) {
+                mushroomSound.stop(); // Stop the sound if it's already playing
+            }
+            mushroomSound.play(); // Play the sound
+
         }
     }
 
@@ -1261,6 +1349,12 @@ class SuperStar {
             this.isCollected = true;
             this.scene.remove(this.model); // Remove the Super Star from the scene
             this.applyPowerUp();
+
+            // Play the mushroom collection sound
+            if (mushroomSound.isPlaying) {
+                mushroomSound.stop(); // Stop the sound if it's already playing
+            }
+            mushroomSound.play(); // Play the sound
         }
     }
 
@@ -1328,6 +1422,12 @@ class BrickCoin {
             gameState.coins++;
             gameState.score += 100;
             updateOverlay();
+
+            // Play the coin collection sound
+            if (coinSound.isPlaying) {
+                coinSound.stop(); // Stop the sound if it's already playing
+            }
+            coinSound.play(); // Play the sound
         }
     }
 
