@@ -1,4 +1,3 @@
-// src/level.js
 import { THREE, scene, loader } from './engine.js';
 
 let level = null;

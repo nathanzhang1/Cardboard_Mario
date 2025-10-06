@@ -1,4 +1,3 @@
-// src/entities.js
 import { THREE } from './engine.js';
 
 // Goomba
